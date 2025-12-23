@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AEW TCG Deck Constructor</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Load JSZip BEFORE your modules -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 
@@ -72,8 +74,8 @@
                 <button id="importDeck">Import Deck</button>
                 <button id="exportDeck">Export as Text</button>
                 <button id="exportAsImageBtn">Export as Image</button>
+                <button id="exportAllCards">Export All Cards as Images</button>
                 <button id="clearDeck">Clear Deck</button>
-		<button id="exportAllCards">Export All Cards as Images</button>
             </div>
         </div>
     </main>
@@ -99,7 +101,11 @@
         </div>
     </div>
 
+    <!-- Test button for debugging -->
+    <button onclick="testExport()" style="position: fixed; bottom: 10px; right: 10px; z-index: 10000; padding: 10px; background: red; color: white; border: none; border-radius: 4px; cursor: pointer;">
+        TEST EXPORT
+    </button>
+
     <script type="module" src="main.js"></script>
 </body>
 </html>
-

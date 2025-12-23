@@ -4,7 +4,7 @@ import * as ui from './ui.js';
 import * as deck from './deck.js';
 import { parseAndLoadDeck } from './importer.js';
 import { generatePlainTextDeck, exportDeckAsImage } from './exporter.js';
-import { exportAllCardsAsImages } from './master-export.js'; // NEW IMPORT
+import { exportAllCardsAsImages, exportAllCardsAsImagesFallback } from './master-export.js';
 
 export function initializeAllEventListeners(refreshCardPool) {
     // POOL LISTENERS
@@ -52,7 +52,7 @@ export function initializeAllEventListeners(refreshCardPool) {
     const clearDeckBtn = document.getElementById('clearDeck');
     const exportDeckBtn = document.getElementById('exportDeck');
     const exportAsImageBtn = document.getElementById('exportAsImageBtn');
-    const exportAllCardsBtn = document.getElementById('exportAllCards'); // NEW
+    const exportAllCardsBtn = document.getElementById('exportAllCards');
 
     wrestlerSelect.addEventListener('change', (e) => {
         const newWrestler = state.cardTitleCache[e.target.value] || null;
@@ -98,9 +98,18 @@ export function initializeAllEventListeners(refreshCardPool) {
     });
     exportAsImageBtn.addEventListener('click', exportDeckAsImage);
     
-    // NEW: Export All Cards button
+    // Export All Cards button with fallback
     if (exportAllCardsBtn) {
-        exportAllCardsBtn.addEventListener('click', exportAllCardsAsImages);
+        exportAllCardsBtn.addEventListener('click', async () => {
+            try {
+                await exportAllCardsAsImages();
+            } catch (error) {
+                console.error("Export failed:", error);
+                if (confirm("ZIP export failed. Would you like to try downloading images individually instead?")) {
+                    await exportAllCardsAsImagesFallback();
+                }
+            }
+        });
     }
 
     // MODAL LISTENERS
