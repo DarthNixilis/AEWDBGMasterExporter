@@ -3,6 +3,33 @@ import * as state from './config.js';
 import { generatePlaytestCardHTML } from './card-renderer.js';
 import { toPascalCase } from './config.js';
 
+// Load JSZip dynamically
+async function loadJSZip() {
+    if (window.JSZip) {
+        return window.JSZip;
+    }
+    
+    // Try to load JSZip from CDN
+    try {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        document.head.appendChild(script);
+        
+        return new Promise((resolve, reject) => {
+            script.onload = () => {
+                if (window.JSZip) {
+                    resolve(window.JSZip);
+                } else {
+                    reject(new Error('JSZip failed to load'));
+                }
+            };
+            script.onerror = () => reject(new Error('Failed to load JSZip'));
+        });
+    } catch (error) {
+        throw new Error('JSZip not available: ' + error.message);
+    }
+}
+
 export async function exportAllCardsAsImages() {
     console.log("Export All Cards function called");
     
@@ -40,12 +67,8 @@ async function exportSingleZip(cards, zipName) {
         return;
     }
     
-    // Check if JSZip is available
-    if (typeof JSZip === 'undefined') {
-        alert("JSZip library not loaded. Please check your internet connection and try again.");
-        console.error("JSZip not found");
-        return;
-    }
+    // Load JSZip
+    const JSZip = await loadJSZip();
     
     // Create a temporary container for rendering
     const tempContainer = document.createElement('div');
