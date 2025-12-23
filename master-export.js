@@ -1,21 +1,14 @@
-// master-export.js
+// master-export.js (enhanced with category options)
 import * as state from './config.js';
 import { generatePlaytestCardHTML } from './card-renderer.js';
 import { toPascalCase } from './config.js';
 
-export async function exportAllCardsAsImages() {
-    const allCards = [...state.cardDatabase];
-    
-    if (allCards.length === 0) {
-        alert("No cards found in the database.");
-        return;
+// Helper function to generate ZIP from cards
+async function generateCardZip(cards, zipName) {
+    if (cards.length === 0) {
+        return null;
     }
     
-    if (!confirm(`This will generate ${allCards.length} individual card images. This may take a while. Continue?`)) {
-        return;
-    }
-    
-    // Create a temporary container for rendering
     const tempContainer = document.createElement('div');
     tempContainer.style.position = 'absolute';
     tempContainer.style.left = '-9999px';
@@ -23,64 +16,38 @@ export async function exportAllCardsAsImages() {
     tempContainer.style.height = '1050px';
     document.body.appendChild(tempContainer);
     
-    // Card dimensions (matching playtest cards)
     const CARD_WIDTH = 750;
     const CARD_HEIGHT = 1050;
-    
-    // DPI for good quality
     const DPI = 300;
-    const PRINT_WIDTH = 2.5 * DPI; // 750px at 300 DPI = 2.5 inches
-    const PRINT_HEIGHT = 3.5 * DPI; // 1050px at 300 DPI = 3.5 inches
+    const PRINT_WIDTH = 2.5 * DPI;
+    const PRINT_HEIGHT = 3.5 * DPI;
     
-    try {
-        // Create progress indicator
-        const progressDiv = document.createElement('div');
-        progressDiv.style.position = 'fixed';
-        progressDiv.style.top = '50%';
-        progressDiv.style.left = '50%';
-        progressDiv.style.transform = 'translate(-50%, -50%)';
-        progressDiv.style.backgroundColor = 'white';
-        progressDiv.style.padding = '20px';
-        progressDiv.style.border = '2px solid #000';
-        progressDiv.style.borderRadius = '8px';
-        progressDiv.style.zIndex = '9999';
-        progressDiv.style.boxShadow = '0 0 20px rgba(0,0,0,0.3)';
-        document.body.appendChild(progressDiv);
+    const zip = new JSZip();
+    const folder = zip.folder(zipName.replace('.zip', ''));
+    
+    let completed = 0;
+    let failed = 0;
+    
+    // Process in batches
+    const BATCH_SIZE = 3;
+    
+    for (let i = 0; i < cards.length; i += BATCH_SIZE) {
+        const batch = cards.slice(i, i + BATCH_SIZE);
         
-        // Process cards
-        for (let i = 0; i < allCards.length; i++) {
-            const card = allCards[i];
-            
-            // Update progress
-            progressDiv.innerHTML = `
-                <div style="text-align: center; font-family: Arial, sans-serif;">
-                    <h3>Generating Card Images...</h3>
-                    <p>${i + 1} of ${allCards.length}</p>
-                    <p><strong>${card.title}</strong></p>
-                    <p>(${card.card_type})</p>
-                    <div style="width: 300px; height: 20px; background: #f0f0f0; border-radius: 10px; margin: 10px auto;">
-                        <div style="width: ${((i + 1) / allCards.length) * 100}%; height: 100%; background: #007bff; border-radius: 10px;"></div>
-                    </div>
-                </div>
-            `;
-            
-            // Generate the card HTML
-            const cardHTML = await generatePlaytestCardHTML(card, tempContainer);
-            tempContainer.innerHTML = cardHTML;
-            const cardElement = tempContainer.firstElementChild;
-            
-            // Create canvas for this card
-            const canvas = document.createElement('canvas');
-            canvas.width = PRINT_WIDTH;
-            canvas.height = PRINT_HEIGHT;
-            const ctx = canvas.getContext('2d');
-            
-            // Set white background
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
+        const batchPromises = batch.map(async (card) => {
             try {
-                // Render card to canvas
+                const cardHTML = await generatePlaytestCardHTML(card, tempContainer);
+                tempContainer.innerHTML = cardHTML;
+                const cardElement = tempContainer.firstElementChild;
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = PRINT_WIDTH;
+                canvas.height = PRINT_HEIGHT;
+                const ctx = canvas.getContext('2d');
+                
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
                 const cardCanvas = await html2canvas(cardElement, {
                     width: CARD_WIDTH,
                     height: CARD_HEIGHT,
@@ -90,84 +57,174 @@ export async function exportAllCardsAsImages() {
                     useCORS: true
                 });
                 
-                // Draw to main canvas
                 ctx.drawImage(cardCanvas, 0, 0, PRINT_WIDTH, PRINT_HEIGHT);
                 
-                // Convert to data URL
                 const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+                const base64Data = dataUrl.replace(/^data:image\/(jpeg|jpg);base64,/, '');
                 
-                // Create download link
-                const a = document.createElement('a');
-                a.href = dataUrl;
-                
-                // Clean filename: remove special characters, convert to PascalCase
                 const cleanTitle = card.title.replace(/[^a-zA-Z0-9\s]/g, '');
-                const fileName = toPascalCase(cleanTitle);
-                a.download = `${fileName}.jpg`;
+                const fileName = toPascalCase(cleanTitle) + '.jpg';
                 
-                // Trigger download
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
+                folder.file(fileName, base64Data, { base64: true });
                 
-                // Small delay to prevent overwhelming the browser
-                await new Promise(resolve => setTimeout(resolve, 100));
+                completed++;
                 
             } catch (error) {
                 console.error(`Error rendering card "${card.title}":`, error);
-                // Continue with next card instead of stopping
-                continue;
+                failed++;
+            }
+        });
+        
+        await Promise.all(batchPromises);
+        await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    
+    document.body.removeChild(tempContainer);
+    
+    if (completed === 0) {
+        return null;
+    }
+    
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    return { blob: zipBlob, name: zipName, count: completed, failed: failed };
+}
+
+export async function exportAllCardsAsImages() {
+    const allCards = [...state.cardDatabase];
+    
+    if (allCards.length === 0) {
+        alert("No cards found in the database.");
+        return;
+    }
+    
+    const option = prompt(
+        "Choose export option:\n" +
+        "1. Single ZIP with all cards\n" +
+        "2. Separate ZIPs by card type\n" +
+        "3. Single ZIP by selected type\n" +
+        "Enter 1, 2, or 3:"
+    );
+    
+    if (!option) return;
+    
+    if (option === '1') {
+        // Single ZIP with all cards
+        if (!confirm(`This will generate a single ZIP file with ${allCards.length} card images. This may take several minutes. Continue?`)) {
+            return;
+        }
+        
+        const result = await generateCardZip(allCards, 'AEW-Complete-Set.zip');
+        if (result) {
+            downloadZip(result.blob, result.name);
+            alert(`Generated ${result.name} with ${result.count} card images! ${result.failed > 0 ? `(${result.failed} failed)` : ''}`);
+        }
+        
+    } else if (option === '2') {
+        // Separate ZIPs by card type
+        const cardsByType = groupCardsByType(allCards);
+        const totalCards = Object.values(cardsByType).reduce((sum, cards) => sum + cards.length, 0);
+        
+        if (!confirm(`This will generate ${Object.keys(cardsByType).length} ZIP files (${totalCards} total cards). This may take a while. Continue?`)) {
+            return;
+        }
+        
+        // Show progress
+        const progressDiv = createProgressDiv('Generating category ZIP files...');
+        
+        for (const [type, cards] of Object.entries(cardsByType)) {
+            if (cards.length > 0) {
+                progressDiv.innerHTML = `<div style="text-align: center;"><h3>Processing ${type} cards...</h3><p>(${cards.length} cards)</p></div>`;
+                
+                const result = await generateCardZip(cards, `AEW-${type}-Cards.zip`);
+                if (result) {
+                    downloadZip(result.blob, result.name);
+                }
+                
+                // Small delay between downloads
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
         
-        // Cleanup
         document.body.removeChild(progressDiv);
-        document.body.removeChild(tempContainer);
+        alert('All category ZIP files have been generated!');
         
-        alert(`Successfully generated ${allCards.length} card images!`);
+    } else if (option === '3') {
+        // Single ZIP by selected type
+        const cardsByType = groupCardsByType(allCards);
+        const types = Object.keys(cardsByType).filter(type => cardsByType[type].length > 0);
         
-    } catch (error) {
-        console.error("Error in exportAllCardsAsImages:", error);
-        alert("An error occurred while generating card images. Check console for details.");
+        const selectedType = prompt(
+            `Select card type to export:\n${types.map((type, i) => `${i + 1}. ${type} (${cardsByType[type].length} cards)`).join('\n')}\nEnter number or type name:`
+        );
         
-        // Cleanup on error
-        if (document.body.contains(tempContainer)) {
-            document.body.removeChild(tempContainer);
-        }
-        const progressDiv = document.querySelector('div[style*="fixed"]');
-        if (progressDiv) {
-            document.body.removeChild(progressDiv);
+        if (selectedType) {
+            let typeIndex = parseInt(selectedType) - 1;
+            let selectedTypeName = types[typeIndex] || selectedType;
+            
+            if (cardsByType[selectedTypeName] && cardsByType[selectedTypeName].length > 0) {
+                const cards = cardsByType[selectedTypeName];
+                if (confirm(`Generate ZIP file for ${selectedTypeName} (${cards.length} cards)?`)) {
+                    const result = await generateCardZip(cards, `AEW-${selectedTypeName}-Cards.zip`);
+                    if (result) {
+                        downloadZip(result.blob, result.name);
+                        alert(`Generated ${result.name} with ${result.count} ${selectedTypeName} card images!`);
+                    }
+                }
+            } else {
+                alert(`No cards found for type: ${selectedTypeName}`);
+            }
         }
     }
 }
 
-// Optional: Export by category
-export async function exportCardsByCategory() {
-    const allCards = [...state.cardDatabase];
-    
-    // Group cards by type
-    const cardsByType = {
-        Wrestler: allCards.filter(c => c.card_type === 'Wrestler'),
-        Manager: allCards.filter(c => c.card_type === 'Manager'),
-        Action: allCards.filter(c => c.card_type === 'Action'),
-        Grapple: allCards.filter(c => c.card_type === 'Grapple'),
-        Strike: allCards.filter(c => c.card_type === 'Strike'),
-        Submission: allCards.filter(c => c.card_type === 'Submission'),
-        Response: allCards.filter(c => c.card_type === 'Response'),
-        // Future types (when added):
-        Boon: allCards.filter(c => c.card_type === 'Boon'),
-        Injury: allCards.filter(c => c.card_type === 'Injury'),
-        'Call Name': allCards.filter(c => c.card_type === 'Call Name'),
-        Faction: allCards.filter(c => c.card_type === 'Faction')
+// Helper functions
+function groupCardsByType(cards) {
+    return {
+        Wrestler: cards.filter(c => c.card_type === 'Wrestler'),
+        Manager: cards.filter(c => c.card_type === 'Manager'),
+        Action: cards.filter(c => c.card_type === 'Action'),
+        Grapple: cards.filter(c => c.card_type === 'Grapple'),
+        Strike: cards.filter(c => c.card_type === 'Strike'),
+        Submission: cards.filter(c => c.card_type === 'Submission'),
+        Response: cards.filter(c => c.card_type === 'Response'),
+        Boon: cards.filter(c => c.card_type === 'Boon'),
+        Injury: cards.filter(c => c.card_type === 'Injury'),
+        'Call-Name': cards.filter(c => c.card_type === 'Call Name'),
+        Faction: cards.filter(c => c.card_type === 'Faction')
     };
+}
+
+function createProgressDiv(message) {
+    const div = document.createElement('div');
+    div.style.position = 'fixed';
+    div.style.top = '50%';
+    div.style.left = '50%';
+    div.style.transform = 'translate(-50%, -50%)';
+    div.style.backgroundColor = 'white';
+    div.style.padding = '20px';
+    div.style.border = '2px solid #000';
+    div.style.borderRadius = '8px';
+    div.style.zIndex = '9999';
+    div.style.boxShadow = '0 0 20px rgba(0,0,0,0.3)';
+    div.style.minWidth = '300px';
+    div.style.textAlign = 'center';
+    div.innerHTML = `<div style="text-align: center;"><h3>${message}</h3><div class="spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto;"></div></div>`;
     
-    let totalCards = 0;
-    Object.values(cardsByType).forEach(cards => totalCards += cards.length);
+    const style = document.createElement('style');
+    style.textContent = `@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`;
+    document.head.appendChild(style);
     
-    if (!confirm(`This will generate ${totalCards} individual card images grouped by type. Continue?`)) {
-        return;
-    }
-    
-    // Similar implementation to exportAllCardsAsImages but organized by type
-    // You can modify the above function to accept a filter parameter
+    document.body.appendChild(div);
+    return div;
+}
+
+function downloadZip(blob, filename) {
+    const a = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 60000); // Keep URL alive for 1 minute
 }
