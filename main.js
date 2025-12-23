@@ -2,8 +2,8 @@
 import { loadGameData } from './data-loader.js';
 import { initializeApp } from './app-init.js';
 
-// Add debug logging
-console.log("JSZip available:", typeof JSZip !== 'undefined');
+// Check if dependencies are loaded
+console.log("JSZip available:", typeof window.JSZip !== 'undefined');
 console.log("html2canvas available:", typeof html2canvas !== 'undefined');
 
 async function startApp() {
@@ -19,4 +19,7 @@ async function startApp() {
     }
 }
 
-startApp();
+// Wait a bit for scripts to load
+setTimeout(() => {
+    startApp();
+}, 500);
