@@ -1,9 +1,14 @@
 // master-export.js
 import * as state from './config.js';
 import { generatePlaytestCardHTML } from './card-renderer.js';
+import { toPascalCase } from './config.js';
 
 // Helper function to create clean filename with Regular Case
-function getCleanFileName(cardTitle) {
+function getCleanFileName(cardTitle, usePascalCase = false) {
+    if (usePascalCase) {
+        return toPascalCase(cardTitle);
+    }
+    
     // Remove special characters but keep spaces
     const cleanTitle = cardTitle.replace(/[^a-zA-Z0-9\s]/g, '');
     
@@ -53,28 +58,91 @@ export async function exportAllCardsAsImages() {
         return;
     }
     
-    const option = prompt(
-        "Choose export option:\n" +
-        "1. Single ZIP with all cards\n" +
-        "2. Separate ZIPs by card type\n" +
-        "3. Single ZIP by selected type\n" +
-        "Enter 1, 2, or 3:"
-    );
+    // Create modal for export options
+    const exportModal = document.createElement('div');
+    exportModal.style.position = 'fixed';
+    exportModal.style.top = '0';
+    exportModal.style.left = '0';
+    exportModal.style.width = '100%';
+    exportModal.style.height = '100%';
+    exportModal.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    exportModal.style.zIndex = '9998';
+    exportModal.style.display = 'flex';
+    exportModal.style.justifyContent = 'center';
+    exportModal.style.alignItems = 'center';
     
-    if (!option) return;
+    const exportModalContent = document.createElement('div');
+    exportModalContent.style.backgroundColor = 'white';
+    exportModalContent.style.padding = '30px';
+    exportModalContent.style.borderRadius = '10px';
+    exportModalContent.style.boxShadow = '0 0 20px rgba(0,0,0,0.3)';
+    exportModalContent.style.width = '400px';
+    exportModalContent.style.maxWidth = '90%';
     
-    if (option === '1') {
-        await exportSingleZip(allCards, 'AEW-Complete-Set.zip');
-    } else if (option === '2') {
-        await exportByCategorySeparate(allCards);
-    } else if (option === '3') {
-        await exportByCategorySingle(allCards);
-    } else {
-        alert("Invalid option selected.");
-    }
+    // Build modal content
+    exportModalContent.innerHTML = `
+        <h3 style="margin-top: 0;">Export Options</h3>
+        
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 10px; font-weight: bold;">
+                <input type="checkbox" id="exportUsePascalCase" style="margin-right: 8px;">
+                Use PascalCase filenames (e.g., "AmazingDisplayOfPower.jpg")
+            </label>
+            <small style="color: #666; display: block; margin-top: 5px;">
+                Unchecked: Regular Case with spaces (e.g., "Amazing Display Of Power.jpg")
+            </small>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <strong style="display: block; margin-bottom: 10px;">Export Type:</strong>
+            <select id="exportTypeSelect" style="width: 100%; padding: 8px; font-size: 16px;">
+                <option value="1">Single ZIP with all cards</option>
+                <option value="2">Separate ZIPs by card type</option>
+                <option value="3">Single ZIP by selected type</option>
+            </select>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; margin-top: 25px;">
+            <button id="exportCancelBtn" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                Cancel
+            </button>
+            <button id="exportConfirmBtn" style="padding: 10px 20px; background: #20c997; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                Start Export
+            </button>
+        </div>
+    `;
+    
+    exportModal.appendChild(exportModalContent);
+    document.body.appendChild(exportModal);
+    
+    // Wait for user selection
+    return new Promise((resolve) => {
+        const cancelBtn = document.getElementById('exportCancelBtn');
+        const confirmBtn = document.getElementById('exportConfirmBtn');
+        
+        cancelBtn.onclick = () => {
+            document.body.removeChild(exportModal);
+            resolve();
+        };
+        
+        confirmBtn.onclick = async () => {
+            const usePascalCase = document.getElementById('exportUsePascalCase').checked;
+            const exportType = document.getElementById('exportTypeSelect').value;
+            document.body.removeChild(exportModal);
+            
+            if (exportType === '1') {
+                await exportSingleZip(allCards, 'AEW-Complete-Set.zip', usePascalCase);
+            } else if (exportType === '2') {
+                await exportByCategorySeparate(allCards, usePascalCase);
+            } else if (exportType === '3') {
+                await exportByCategorySingle(allCards, usePascalCase);
+            }
+            resolve();
+        };
+    });
 }
 
-async function exportSingleZip(cards, zipName) {
+async function exportSingleZip(cards, zipName, usePascalCase = false) {
     if (!confirm(`This will generate a single ZIP file with ${cards.length} card images. This may take several minutes. Continue?`)) {
         return;
     }
@@ -86,18 +154,13 @@ async function exportSingleZip(cards, zipName) {
     const tempContainer = document.createElement('div');
     tempContainer.style.position = 'absolute';
     tempContainer.style.left = '-9999px';
-    tempContainer.style.width = '214px';  // Updated to match final card width
-    tempContainer.style.height = '308px'; // Updated to match final card height
+    tempContainer.style.width = '750px';
+    tempContainer.style.height = '1050px';
     document.body.appendChild(tempContainer);
     
-    // NEW: Card dimensions for export (214x308 pixels)
+    // Card dimensions for export (214x308 pixels)
     const CARD_WIDTH = 214;
     const CARD_HEIGHT = 308;
-    
-    // For html2canvas, we need to render at a higher resolution then scale down
-    const RENDER_SCALE = 2; // Render at 2x then scale down for better quality
-    const RENDER_WIDTH = CARD_WIDTH * RENDER_SCALE;
-    const RENDER_HEIGHT = CARD_HEIGHT * RENDER_SCALE;
     
     try {
         // Create progress indicator
@@ -163,7 +226,7 @@ async function exportSingleZip(cards, zipName) {
             try {
                 console.log(`Processing card ${i + 1}: ${card.title}`);
                 
-                // Generate the card HTML at the final size
+                // Generate the card HTML at original size (750x1050)
                 const cardHTML = await generatePlaytestCardHTML(card, tempContainer);
                 tempContainer.innerHTML = cardHTML;
                 const cardElement = tempContainer.firstElementChild;
@@ -172,30 +235,49 @@ async function exportSingleZip(cards, zipName) {
                     throw new Error('Failed to create card element');
                 }
                 
-                // Create canvas for final output
+                // Create canvas for final output (214x308)
                 const finalCanvas = document.createElement('canvas');
                 finalCanvas.width = CARD_WIDTH;
                 finalCanvas.height = CARD_HEIGHT;
                 const finalCtx = finalCanvas.getContext('2d');
                 
-                // Create a temporary high-res canvas for rendering
-                const renderCanvas = document.createElement('canvas');
-                renderCanvas.width = RENDER_WIDTH;
-                renderCanvas.height = RENDER_HEIGHT;
+                // Set white background
+                finalCtx.fillStyle = 'white';
+                finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
                 
-                // Render card to high-res canvas
+                // Create a temporary canvas at original size
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = 750;
+                tempCanvas.height = 1050;
+                
+                // Render card to temporary canvas at original size
                 console.log(`Rendering ${card.title} to canvas...`);
-                const cardCanvas = await html2canvas(cardElement, {
-                    width: RENDER_WIDTH,
-                    height: RENDER_HEIGHT,
+                await html2canvas(cardElement, {
+                    canvas: tempCanvas,
+                    width: 750,
+                    height: 1050,
                     scale: 1,
                     backgroundColor: null,
                     logging: false,
-                    useCORS: true
+                    useCORS: true,
+                    allowTaint: true
                 });
                 
-                // Draw high-res image to final canvas (scaling down for better quality)
-                finalCtx.drawImage(cardCanvas, 0, 0, RENDER_WIDTH, RENDER_HEIGHT, 0, 0, CARD_WIDTH, CARD_HEIGHT);
+                // DEBUG: Check dimensions
+                console.log(`Source canvas: ${tempCanvas.width}x${tempCanvas.height}`);
+                console.log(`Target canvas: ${finalCanvas.width}x${finalCanvas.height}`);
+                
+                // Save the current context state
+                finalCtx.save();
+                
+                // Scale the context to fit the entire image
+                finalCtx.scale(CARD_WIDTH / 750, CARD_HEIGHT / 1050);
+                
+                // Draw the entire canvas scaled down
+                finalCtx.drawImage(tempCanvas, 0, 0);
+                
+                // Restore the context state
+                finalCtx.restore();
                 
                 // Convert to blob
                 const blob = await new Promise(resolve => {
@@ -209,8 +291,8 @@ async function exportSingleZip(cards, zipName) {
                 // Convert blob to array buffer for ZIP
                 const arrayBuffer = await blob.arrayBuffer();
                 
-                // Create Regular Case filename
-                const fileName = getCleanFileName(card.title) + '.jpg';
+                // Create filename based on selected format
+                const fileName = getCleanFileName(card.title, usePascalCase) + '.jpg';
                 
                 // Add to ZIP
                 zip.file(fileName, arrayBuffer);
@@ -309,7 +391,7 @@ async function exportSingleZip(cards, zipName) {
     }
 }
 
-async function exportByCategorySeparate(allCards) {
+async function exportByCategorySeparate(allCards, usePascalCase = false) {
     const cardsByType = groupCardsByType(allCards);
     const types = Object.keys(cardsByType).filter(type => cardsByType[type].length > 0);
     const totalCards = Object.values(cardsByType).reduce((sum, cards) => sum + cards.length, 0);
@@ -322,7 +404,7 @@ async function exportByCategorySeparate(allCards) {
         const cards = cardsByType[type];
         if (cards.length > 0) {
             if (confirm(`Generate ZIP for ${type} (${cards.length} cards)?`)) {
-                await exportSingleZip(cards, `AEW ${type} Cards.zip`);
+                await exportSingleZip(cards, `AEW ${type} Cards.zip`, usePascalCase);
                 // Small delay between downloads
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
@@ -332,7 +414,7 @@ async function exportByCategorySeparate(allCards) {
     alert('All category ZIP files have been generated!');
 }
 
-async function exportByCategorySingle(allCards) {
+async function exportByCategorySingle(allCards, usePascalCase = false) {
     const cardsByType = groupCardsByType(allCards);
     const types = Object.keys(cardsByType).filter(type => cardsByType[type].length > 0);
     
@@ -352,7 +434,10 @@ async function exportByCategorySingle(allCards) {
     
     if (cardsByType[selectedTypeName] && cardsByType[selectedTypeName].length > 0) {
         const cards = cardsByType[selectedTypeName];
-        await exportSingleZip(cards, `AEW ${selectedTypeName} Cards.zip`);
+        const zipName = usePascalCase ? 
+            `AEW${selectedTypeName.replace(/\s+/g, '')}Cards.zip` : 
+            `AEW ${selectedTypeName} Cards.zip`;
+        await exportSingleZip(cards, zipName, usePascalCase);
     } else {
         alert(`No cards found for type: ${selectedTypeName}`);
     }
@@ -376,7 +461,7 @@ function groupCardsByType(cards) {
 }
 
 // Simple fallback version without ZIP (one-by-one download)
-export async function exportAllCardsAsImagesFallback() {
+export async function exportAllCardsAsImagesFallback(usePascalCase = false) {
     const allCards = [...state.cardDatabase];
     
     if (allCards.length === 0) {
@@ -392,18 +477,13 @@ export async function exportAllCardsAsImagesFallback() {
     const tempContainer = document.createElement('div');
     tempContainer.style.position = 'absolute';
     tempContainer.style.left = '-9999px';
-    tempContainer.style.width = '214px';  // Updated
-    tempContainer.style.height = '308px'; // Updated
+    tempContainer.style.width = '750px';
+    tempContainer.style.height = '1050px';
     document.body.appendChild(tempContainer);
     
     // Card dimensions for export
     const CARD_WIDTH = 214;
     const CARD_HEIGHT = 308;
-    
-    // For html2canvas, we need to render at a higher resolution then scale down
-    const RENDER_SCALE = 2;
-    const RENDER_WIDTH = CARD_WIDTH * RENDER_SCALE;
-    const RENDER_HEIGHT = CARD_HEIGHT * RENDER_SCALE;
     
     // Process cards one by one
     for (let i = 0; i < allCards.length; i++) {
@@ -420,25 +500,39 @@ export async function exportAllCardsAsImagesFallback() {
             finalCanvas.height = CARD_HEIGHT;
             const finalCtx = finalCanvas.getContext('2d');
             
-            // Render card to high-res canvas
-            const cardCanvas = await html2canvas(cardElement, {
-                width: RENDER_WIDTH,
-                height: RENDER_HEIGHT,
+            // Set white background
+            finalCtx.fillStyle = 'white';
+            finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+            
+            // Create a temporary canvas at original size
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = 750;
+            tempCanvas.height = 1050;
+            
+            // Render card to temporary canvas
+            await html2canvas(cardElement, {
+                canvas: tempCanvas,
+                width: 750,
+                height: 1050,
                 scale: 1,
                 backgroundColor: null,
                 logging: false,
-                useCORS: true
+                useCORS: true,
+                allowTaint: true
             });
             
-            // Draw high-res image to final canvas (scaling down)
-            finalCtx.drawImage(cardCanvas, 0, 0, RENDER_WIDTH, RENDER_HEIGHT, 0, 0, CARD_WIDTH, CARD_HEIGHT);
+            // Scale the entire image down
+            finalCtx.save();
+            finalCtx.scale(CARD_WIDTH / 750, CARD_HEIGHT / 1050);
+            finalCtx.drawImage(tempCanvas, 0, 0);
+            finalCtx.restore();
             
             const dataUrl = finalCanvas.toDataURL('image/jpeg', 0.95);
             const a = document.createElement('a');
             a.href = dataUrl;
             
-            // Use Regular Case for filenames
-            const fileName = getCleanFileName(card.title) + '.jpg';
+            // Use selected filename format
+            const fileName = getCleanFileName(card.title, usePascalCase) + '.jpg';
             a.download = fileName;
             
             document.body.appendChild(a);
