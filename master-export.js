@@ -86,16 +86,18 @@ async function exportSingleZip(cards, zipName) {
     const tempContainer = document.createElement('div');
     tempContainer.style.position = 'absolute';
     tempContainer.style.left = '-9999px';
-    tempContainer.style.width = '750px';
-    tempContainer.style.height = '1050px';
+    tempContainer.style.width = '214px';  // Updated to match final card width
+    tempContainer.style.height = '308px'; // Updated to match final card height
     document.body.appendChild(tempContainer);
     
-    // Card dimensions
-    const CARD_WIDTH = 750;
-    const CARD_HEIGHT = 1050;
-    const DPI = 300;
-    const PRINT_WIDTH = 2.5 * DPI;
-    const PRINT_HEIGHT = 3.5 * DPI;
+    // NEW: Card dimensions for export (214x308 pixels)
+    const CARD_WIDTH = 214;
+    const CARD_HEIGHT = 308;
+    
+    // For html2canvas, we need to render at a higher resolution then scale down
+    const RENDER_SCALE = 2; // Render at 2x then scale down for better quality
+    const RENDER_WIDTH = CARD_WIDTH * RENDER_SCALE;
+    const RENDER_HEIGHT = CARD_HEIGHT * RENDER_SCALE;
     
     try {
         // Create progress indicator
@@ -161,7 +163,7 @@ async function exportSingleZip(cards, zipName) {
             try {
                 console.log(`Processing card ${i + 1}: ${card.title}`);
                 
-                // Generate the card HTML
+                // Generate the card HTML at the final size
                 const cardHTML = await generatePlaytestCardHTML(card, tempContainer);
                 tempContainer.innerHTML = cardHTML;
                 const cardElement = tempContainer.firstElementChild;
@@ -170,33 +172,34 @@ async function exportSingleZip(cards, zipName) {
                     throw new Error('Failed to create card element');
                 }
                 
-                // Create canvas
-                const canvas = document.createElement('canvas');
-                canvas.width = PRINT_WIDTH;
-                canvas.height = PRINT_HEIGHT;
-                const ctx = canvas.getContext('2d');
+                // Create canvas for final output
+                const finalCanvas = document.createElement('canvas');
+                finalCanvas.width = CARD_WIDTH;
+                finalCanvas.height = CARD_HEIGHT;
+                const finalCtx = finalCanvas.getContext('2d');
                 
-                // Set white background
-                ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                // Create a temporary high-res canvas for rendering
+                const renderCanvas = document.createElement('canvas');
+                renderCanvas.width = RENDER_WIDTH;
+                renderCanvas.height = RENDER_HEIGHT;
                 
-                // Render card to canvas
+                // Render card to high-res canvas
                 console.log(`Rendering ${card.title} to canvas...`);
                 const cardCanvas = await html2canvas(cardElement, {
-                    width: CARD_WIDTH,
-                    height: CARD_HEIGHT,
+                    width: RENDER_WIDTH,
+                    height: RENDER_HEIGHT,
                     scale: 1,
                     backgroundColor: null,
                     logging: false,
                     useCORS: true
                 });
                 
-                // Draw to main canvas
-                ctx.drawImage(cardCanvas, 0, 0, PRINT_WIDTH, PRINT_HEIGHT);
+                // Draw high-res image to final canvas (scaling down for better quality)
+                finalCtx.drawImage(cardCanvas, 0, 0, RENDER_WIDTH, RENDER_HEIGHT, 0, 0, CARD_WIDTH, CARD_HEIGHT);
                 
                 // Convert to blob
                 const blob = await new Promise(resolve => {
-                    canvas.toBlob(resolve, 'image/jpeg', 0.95);
+                    finalCanvas.toBlob(resolve, 'image/jpeg', 0.95);
                 });
                 
                 if (!blob) {
@@ -211,7 +214,7 @@ async function exportSingleZip(cards, zipName) {
                 
                 // Add to ZIP
                 zip.file(fileName, arrayBuffer);
-                console.log(`Added ${fileName} to ZIP`);
+                console.log(`Added ${fileName} to ZIP (${CARD_WIDTH}x${CARD_HEIGHT})`);
                 
                 completed++;
                 
@@ -285,7 +288,7 @@ async function exportSingleZip(cards, zipName) {
         
         // Show completion message
         setTimeout(() => {
-            alert(`Successfully generated ${zipName} with ${completed} card images! ${failed > 0 ? `(${failed} failed to generate)` : ''}`);
+            alert(`Successfully generated ${zipName} with ${completed} card images (${CARD_WIDTH}x${CARD_HEIGHT})! ${failed > 0 ? `(${failed} failed to generate)` : ''}`);
         }, 500);
         
     } catch (error) {
@@ -389,15 +392,18 @@ export async function exportAllCardsAsImagesFallback() {
     const tempContainer = document.createElement('div');
     tempContainer.style.position = 'absolute';
     tempContainer.style.left = '-9999px';
-    tempContainer.style.width = '750px';
-    tempContainer.style.height = '1050px';
+    tempContainer.style.width = '214px';  // Updated
+    tempContainer.style.height = '308px'; // Updated
     document.body.appendChild(tempContainer);
     
-    const CARD_WIDTH = 750;
-    const CARD_HEIGHT = 1050;
-    const DPI = 300;
-    const PRINT_WIDTH = 2.5 * DPI;
-    const PRINT_HEIGHT = 3.5 * DPI;
+    // Card dimensions for export
+    const CARD_WIDTH = 214;
+    const CARD_HEIGHT = 308;
+    
+    // For html2canvas, we need to render at a higher resolution then scale down
+    const RENDER_SCALE = 2;
+    const RENDER_WIDTH = CARD_WIDTH * RENDER_SCALE;
+    const RENDER_HEIGHT = CARD_HEIGHT * RENDER_SCALE;
     
     // Process cards one by one
     for (let i = 0; i < allCards.length; i++) {
@@ -408,26 +414,26 @@ export async function exportAllCardsAsImagesFallback() {
             tempContainer.innerHTML = cardHTML;
             const cardElement = tempContainer.firstElementChild;
             
-            const canvas = document.createElement('canvas');
-            canvas.width = PRINT_WIDTH;
-            canvas.height = PRINT_HEIGHT;
-            const ctx = canvas.getContext('2d');
+            // Create canvas for final output
+            const finalCanvas = document.createElement('canvas');
+            finalCanvas.width = CARD_WIDTH;
+            finalCanvas.height = CARD_HEIGHT;
+            const finalCtx = finalCanvas.getContext('2d');
             
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
+            // Render card to high-res canvas
             const cardCanvas = await html2canvas(cardElement, {
-                width: CARD_WIDTH,
-                height: CARD_HEIGHT,
+                width: RENDER_WIDTH,
+                height: RENDER_HEIGHT,
                 scale: 1,
                 backgroundColor: null,
                 logging: false,
                 useCORS: true
             });
             
-            ctx.drawImage(cardCanvas, 0, 0, PRINT_WIDTH, PRINT_HEIGHT);
+            // Draw high-res image to final canvas (scaling down)
+            finalCtx.drawImage(cardCanvas, 0, 0, RENDER_WIDTH, RENDER_HEIGHT, 0, 0, CARD_WIDTH, CARD_HEIGHT);
             
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+            const dataUrl = finalCanvas.toDataURL('image/jpeg', 0.95);
             const a = document.createElement('a');
             a.href = dataUrl;
             
@@ -448,5 +454,5 @@ export async function exportAllCardsAsImagesFallback() {
     }
     
     document.body.removeChild(tempContainer);
-    alert(`Downloaded ${allCards.length} card images!`);
+    alert(`Downloaded ${allCards.length} card images (${CARD_WIDTH}x${CARD_HEIGHT})!`);
 }
