@@ -30,6 +30,10 @@ export function generateCardVisualHTML(card) {
 }
 
 export function generatePlaytestCardHTML(card, tempContainer, width = 750, height = 1050) {
+    // SIMPLE FONTS that work everywhere
+    const CARD_FONT = 'Arial, Helvetica, sans-serif';
+    const CARD_TITLE_FONT = 'Arial Black, Arial, sans-serif';
+    
     const isPersona = card.card_type === 'Wrestler' || card.card_type === 'Manager';
     const keywords = card.text_box?.keywords || [];
     const traits = card.text_box?.traits || [];
@@ -51,18 +55,26 @@ export function generatePlaytestCardHTML(card, tempContainer, width = 750, heigh
 
     let keywordsText = keywords.map(kw => {
         const definition = state.keywordDatabase[kw.name.trim()] || 'Definition not found.';
-        return `<strong>${kw.name.trim()}:</strong> <span style="font-size: ${reminderFontSize}px; font-style: italic;">${definition}</span>`;
+        return `<strong style="font-family: ${CARD_FONT};">${kw.name.trim()}:</strong> <span style="font-size: ${reminderFontSize}px; font-style: italic; font-family: ${CARD_FONT};">${definition}</span>`;
     }).join('<br><br>');
 
-    let traitsText = traits.map(tr => `<strong>${tr.name.trim()}</strong>`).join(', ');
+    let traitsText = traits.map(tr => `<strong style="font-family: ${CARD_FONT};">${tr.name.trim()}</strong>`).join(', ');
     if (traitsText) {
-        traitsText = `<p style="margin-bottom: ${25 * scale}px;"><span style="font-size: ${reminderFontSize}px; font-style: italic;">${traitsText}</span></p>`;
+        traitsText = `<p style="margin-bottom: ${25 * scale}px; font-family: ${CARD_FONT};"><span style="font-size: ${reminderFontSize}px; font-style: italic;">${traitsText}</span></p>`;
     }
 
     const reminderBlock = traitsText + keywordsText;
     const targetTrait = traits.find(t => t.name.trim() === 'Target');
     const targetValue = targetTrait ? targetTrait.value : null;
-    const typeColors = { 'Action': '#9c5a9c', 'Response': '#c84c4c', 'Submission': '#5aa05a', 'Strike': '#4c82c8', 'Grapple': '#e68a00' };
+    const typeColors = { 
+        'Action': '#9c5a9c', 
+        'Response': '#c84c4c', 
+        'Submission': '#5aa05a', 
+        'Strike': '#4c82c8', 
+        'Grapple': '#e68a00',
+        'Wrestler': '#333333',
+        'Manager': '#666666'
+    };
     const typeColor = typeColors[card.card_type] || '#6c757d';
 
     let rawText = card.text_box?.raw_text || '';
@@ -91,17 +103,17 @@ export function generatePlaytestCardHTML(card, tempContainer, width = 750, heigh
         }
     }
     
-    // Format text with better typography
+    // Format text with simple fonts
     const formattedText = finalLines.map(line => {
         // Make keywords bold
         abilityKeywords.forEach(kw => {
             const regex = new RegExp(`\\b${kw}\\b`, 'g');
-            line = line.replace(regex, `<strong>${kw}</strong>`);
+            line = line.replace(regex, `<strong style="font-family: ${CARD_FONT};">${kw}</strong>`);
         });
         // Make card names italic
         const cardNameRegex = /'([^']+)'/g;
-        line = line.replace(cardNameRegex, `<em>'$1'</em>`);
-        return `<p style="margin: 0 0 ${8 * scale}px 0;">${line}</p>`;
+        line = line.replace(cardNameRegex, `<em style="font-family: ${CARD_FONT};">'$1'</em>`);
+        return `<p style="margin: 0 0 ${8 * scale}px 0; font-family: ${CARD_FONT};">${line}</p>`;
     }).join('');
 
     const fullText = formattedText + reminderBlock;
@@ -121,17 +133,17 @@ export function generatePlaytestCardHTML(card, tempContainer, width = 750, heigh
 
     const costBoxSize = 60 * scale;
     const costPadding = 15 * scale;
-    const costHTML = !isPersona ? `<div style="font-size: ${costBoxSize}px; font-weight: bold; border: ${3 * scale}px solid black; padding: ${costPadding}px ${35 * scale}px; border-radius: ${15 * scale}px; flex-shrink: 0;">${card.cost ?? '–'}</div>` : `<div style="width: ${120 * scale}px; flex-shrink: 0;"></div>`;
+    const costHTML = !isPersona ? `<div style="font-size: ${costBoxSize}px; font-weight: bold; font-family: ${CARD_TITLE_FONT}; border: ${3 * scale}px solid black; padding: ${costPadding}px ${35 * scale}px; border-radius: ${15 * scale}px; flex-shrink: 0;">${card.cost ?? '–'}</div>` : `<div style="width: ${120 * scale}px; flex-shrink: 0;"></div>`;
     
-    const typeLineHTML = !isPersona ? `<div style="padding: ${15 * scale}px; text-align: center; font-size: ${typeLineFontSize}px; font-weight: bold; border-radius: ${15 * scale}px; margin-bottom: ${15 * scale}px; color: white; background-color: ${typeColor};">${card.card_type}</div>` : `<div style="text-align: center; font-size: ${typeLineFontSize}px; font-weight: bold; color: #6c757d; margin-bottom: ${15 * scale}px;">${card.card_type}</div>`;
+    const typeLineHTML = !isPersona ? `<div style="padding: ${15 * scale}px; text-align: center; font-size: ${typeLineFontSize}px; font-weight: bold; font-family: ${CARD_TITLE_FONT}; border-radius: ${15 * scale}px; margin-bottom: ${15 * scale}px; color: white; background-color: ${typeColor};">${card.card_type}</div>` : `<div style="text-align: center; font-size: ${typeLineFontSize}px; font-weight: bold; font-family: ${CARD_TITLE_FONT}; color: #6c757d; margin-bottom: ${15 * scale}px;">${card.card_type}</div>`;
 
-    // Build the full HTML - SIMPLIFIED VERSION
+    // Build HTML with SIMPLE fonts
     const html = `
-        <div style="position: relative; background-color: white; border: ${borderWidth}px solid black; border-radius: ${borderRadius}px; box-sizing: border-box; width: ${width}px; height: ${height}px; padding: ${padding}px; display: flex; flex-direction: column; color: black; overflow: hidden;">
+        <div style="position: relative; background-color: white; border: ${borderWidth}px solid black; border-radius: ${borderRadius}px; box-sizing: border-box; width: ${width}px; height: ${height}px; padding: ${padding}px; display: flex; flex-direction: column; color: black; overflow: hidden; font-family: ${CARD_FONT};">
             <!-- Header with stats, title, and cost -->
             <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: ${3 * scale}px solid black; padding-bottom: ${15 * scale}px; margin-bottom: ${15 * scale}px; gap: ${15 * scale}px;">
                 <!-- Left: Damage, Momentum, Target -->
-                <div style="font-size: ${statFontSize}px; font-weight: bold; line-height: 1.2; flex-shrink: 0; min-width: ${120 * scale}px;">
+                <div style="font-size: ${statFontSize}px; font-weight: bold; font-family: ${CARD_TITLE_FONT}; line-height: 1.2; flex-shrink: 0; min-width: ${120 * scale}px;">
                     ${!isPersona ? `<div>D: ${card.damage ?? '–'}</div>` : ''}
                     <div>M: ${card.momentum ?? '–'}</div>
                     ${targetValue ? `<div>T: ${targetValue}</div>` : ''}
@@ -139,7 +151,7 @@ export function generatePlaytestCardHTML(card, tempContainer, width = 750, heigh
                 
                 <!-- Center: Title -->
                 <div style="flex-grow: 1; text-align: center; display: flex; align-items: center; justify-content: center; min-height: ${statFontSize * 1.5}px;">
-                    <div style="font-size: ${fittedTitleFontSize}px; font-weight: 900; line-height: 1.1; max-width: 100%;">${title}</div>
+                    <div style="font-size: ${fittedTitleFontSize}px; font-weight: 900; font-family: ${CARD_TITLE_FONT}; line-height: 1.1; max-width: 100%;">${title}</div>
                 </div>
                 
                 <!-- Right: Cost -->
@@ -147,7 +159,7 @@ export function generatePlaytestCardHTML(card, tempContainer, width = 750, heigh
             </div>
             
             <!-- Art Area -->
-            <div style="height: ${artHeight}px; border: ${3 * scale}px solid #ccc; border-radius: ${20 * scale}px; margin-bottom: ${15 * scale}px; display: flex; align-items: center; justify-content: center; font-style: italic; font-size: ${40 * scale}px; color: #888; background-color: #f0f0f0;">
+            <div style="height: ${artHeight}px; border: ${3 * scale}px solid #ccc; border-radius: ${20 * scale}px; margin-bottom: ${15 * scale}px; display: flex; align-items: center; justify-content: center; font-style: italic; font-size: ${40 * scale}px; color: #888; background-color: #f0f0f0; font-family: ${CARD_FONT};">
                 Art Area
             </div>
             
@@ -155,9 +167,9 @@ export function generatePlaytestCardHTML(card, tempContainer, width = 750, heigh
             ${typeLineHTML}
             
             <!-- Text Box -->
-            <div style="background-color: #f8f9fa; border: ${2 * scale}px solid #ccc; border-radius: ${20 * scale}px; padding: ${innerPadding}px; font-size: ${textBoxFontSize}px; line-height: 1.3; text-align: center; white-space: pre-wrap; flex-grow: 1; overflow-y: auto;">
+            <div style="background-color: #f8f9fa; border: ${2 * scale}px solid #ccc; border-radius: ${20 * scale}px; padding: ${innerPadding}px; font-size: ${textBoxFontSize}px; line-height: 1.3; text-align: center; white-space: pre-wrap; flex-grow: 1; overflow-y: auto; font-family: ${CARD_FONT};">
                 ${formattedText}
-                ${reminderBlock ? `<hr style="border-top: ${2 * scale}px solid #ccc; margin: ${25 * scale}px 0;"><div style="margin-bottom: 0;">${reminderBlock}</div>` : ''}
+                ${reminderBlock ? `<hr style="border-top: ${2 * scale}px solid #ccc; margin: ${25 * scale}px 0;"><div style="margin-bottom: 0; font-family: ${CARD_FONT};">${reminderBlock}</div>` : ''}
             </div>
         </div>
     `;
