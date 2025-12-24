@@ -110,6 +110,17 @@ export async function exportAllCardsAsImages() {
         </div>
         
         <div style="margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 10px; font-weight: bold;">
+                <input type="checkbox" id="exportUsePNG" style="margin-right: 8px;">
+                Export as PNG format (higher quality, larger files)
+            </label>
+            <small style="color: #666; display: block; margin-top: 5px;">
+                Unchecked: Export as JPG format (smaller files, good quality)<br>
+                <strong>Recommended:</strong> JPG for most uses, PNG for printing
+            </small>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
             <strong style="display: block; margin-bottom: 10px;">Export Type:</strong>
             <select id="exportTypeSelect" style="width: 100%; padding: 8px; font-size: 16px;">
                 <option value="1">Single ZIP with all cards</option>
@@ -203,6 +214,7 @@ export async function exportAllCardsAsImages() {
         
         confirmBtn.onclick = async () => {
             const usePascalCase = document.getElementById('exportUsePascalCase').checked;
+            const usePNG = document.getElementById('exportUsePNG').checked;
             const exportType = document.getElementById('exportTypeSelect').value;
             const exportSize = document.getElementById('exportSizeSelect').value;
             const renderQuality = parseInt(document.getElementById('renderQuality').value);
@@ -214,6 +226,7 @@ export async function exportAllCardsAsImages() {
             
             const exportOptions = {
                 usePascalCase,
+                usePNG,
                 size: exportSize,
                 renderQuality,
                 includeCutGuides,
@@ -276,7 +289,7 @@ async function processSingleCard(card, tempContainer, options) {
             height: outputHeight,
             scale: 1,
             backgroundColor: 'white', // CRITICAL: Set background color
-            logging: true, // Enable logging to see what's happening
+            logging: false, // Disable logging for production
             useCORS: true,
             allowTaint: true,
             removeContainer: false, // Don't remove container during processing
@@ -292,16 +305,13 @@ async function processSingleCard(card, tempContainer, options) {
         
         console.log(`Canvas created for ${card.title}: ${canvas.width}x${canvas.height}`);
         
-        // Check if canvas has content
-        const ctx = canvas.getContext('2d');
-        const imageData = ctx.getImageData(0, 0, 1, 1).data;
-        console.log(`Pixel color at (0,0): R=${imageData[0]}, G=${imageData[1]}, B=${imageData[2]}, A=${imageData[3]}`);
-        
-        // Convert to blob
+        // Convert to blob - Use PNG if option is checked, otherwise JPG
         const blob = await new Promise((resolve) => {
-            if (options.size === 'lackey' || options.size === 'lackey-hq' || options.size === 'highres') {
+            if (options.usePNG) {
+                // Use PNG with maximum quality
                 canvas.toBlob(resolve, 'image/png', 1.0);
             } else {
+                // Use JPG with high quality (0.95)
                 canvas.toBlob(resolve, 'image/jpeg', 0.95);
             }
         });
@@ -319,7 +329,8 @@ async function processSingleCard(card, tempContainer, options) {
         return {
             arrayBuffer,
             width: outputWidth,
-            height: outputHeight
+            height: outputHeight,
+            format: options.usePNG ? 'png' : 'jpg'
         };
         
     } catch (error) {
@@ -335,6 +346,7 @@ async function processSingleCard(card, tempContainer, options) {
 async function exportSingleZip(cards, zipName, options = {}) {
     const defaultOptions = {
         usePascalCase: false,
+        usePNG: false, // Default to JPG
         size: 'lackey',
         renderQuality: 2,
         includeCutGuides: false,
@@ -351,8 +363,9 @@ async function exportSingleZip(cards, zipName, options = {}) {
     };
     
     const sizeDescription = sizeNames[options.size] || options.size;
+    const formatDescription = options.usePNG ? 'PNG' : 'JPG';
     
-    if (!confirm(`This will generate a single ZIP file with ${cards.length} card images at ${sizeDescription} pixels. This may take several minutes. Continue?`)) {
+    if (!confirm(`This will generate a single ZIP file with ${cards.length} card images at ${sizeDescription} pixels in ${formatDescription} format. This may take several minutes. Continue?`)) {
         return;
     }
     
@@ -397,7 +410,7 @@ async function exportSingleZip(cards, zipName, options = {}) {
                 </div>
                 <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
                     Please wait, this may take several minutes...
-                    <br><small>Rendering at ${options.size} (${sizeDescription})</small>
+                    <br><small>Rendering at ${options.size} (${sizeDescription}) in ${formatDescription} format</small>
                 </p>
                 <button id="cancelExport" style="margin-top: 15px; padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">
                     Cancel
@@ -435,10 +448,10 @@ async function exportSingleZip(cards, zipName, options = {}) {
                     
                     if (result) {
                         // Use the updated getCleanFileName function with card type
-                        const fileName = getCleanFileName(card.title, card.card_type, options.usePascalCase) + 
-                            ((options.size === 'lackey' || options.size === 'lackey-hq' || options.size === 'highres') ? '.png' : '.jpg');
+                        const fileExtension = options.usePNG ? '.png' : '.jpg';
+                        const fileName = getCleanFileName(card.title, card.card_type, options.usePascalCase) + fileExtension;
                         zip.file(fileName, result.arrayBuffer);
-                        console.log(`Added ${fileName} to ZIP (${result.width}x${result.height})`);
+                        console.log(`Added ${fileName} to ZIP (${result.width}x${result.height}, ${result.format})`);
                         completed++;
                     }
                     
@@ -460,7 +473,7 @@ async function exportSingleZip(cards, zipName, options = {}) {
         console.log("Generating ZIP file...");
         progressDiv.innerHTML = `
             <h3 style="margin-top: 0;">Creating ZIP File</h3>
-            <p>Compressing ${completed} images...</p>
+            <p>Compressing ${completed} ${formatDescription} images...</p>
             <div class="spinner" style="border: 4px solid #f3f3f0; border-top: 4px solid #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto;"></div>
             <p style="font-size: 0.9em; color: #666;">Almost done...</p>
         `;
@@ -511,14 +524,14 @@ async function exportSingleZip(cards, zipName, options = {}) {
         // Show completion message
         setTimeout(() => {
             let sizeInfo = '';
-            if (options.size === 'lackey') sizeInfo = ' (750x1050 px) - Perfect for LackeyCCG';
-            else if (options.size === 'lackey-hq') sizeInfo = ' (1125x1575 px) - High Quality for LackeyCCG';
+            if (options.size === 'lackey') sizeInfo = ' (750x1050 px)';
+            else if (options.size === 'lackey-hq') sizeInfo = ' (1125x1575 px)';
             else if (options.size === 'digital') sizeInfo = ' (214x308 px)';
             else if (options.size === 'highres') sizeInfo = ' (1500x2100 px)';
             else if (options.size === 'printsingle') sizeInfo = ' - Print Sheets';
             else if (options.size === 'printmulti') sizeInfo = ' - Multi-card Sheets';
             
-            alert(`Successfully generated ${zipName} with ${completed} card images${sizeInfo}! ${failed > 0 ? `(${failed} failed to generate)` : ''}`);
+            alert(`Successfully generated ${zipName} with ${completed} card images in ${formatDescription} format${sizeInfo}! ${failed > 0 ? `(${failed} failed to generate)` : ''}`);
         }, 500);
         
     } catch (error) {
@@ -587,7 +600,7 @@ async function exportPrintSheetsSingle(zip, cards, options, updateProgress) {
                 
                 // Draw the card image
                 const img = new Image();
-                const blob = new Blob([result.arrayBuffer], { type: 'image/png' });
+                const blob = new Blob([result.arrayBuffer], { type: options.usePNG ? 'image/png' : 'image/jpeg' });
                 const url = URL.createObjectURL(blob);
                 
                 await new Promise((resolve) => {
@@ -636,7 +649,7 @@ async function exportPrintSheetsSingle(zip, cards, options, updateProgress) {
             await new Promise(resolve => setTimeout(resolve, 200));
         }
         
-        // Convert canvas to blob
+        // Convert canvas to blob - Always use JPG for print sheets to keep file size manageable
         const blob = await new Promise(resolve => {
             canvas.toBlob(resolve, 'image/jpeg', 0.95);
         });
@@ -705,7 +718,7 @@ async function exportPrintSheetsMulti(zip, cards, options, updateProgress) {
                 
                 // Draw the card image
                 const img = new Image();
-                const blob = new Blob([result.arrayBuffer], { type: 'image/png' });
+                const blob = new Blob([result.arrayBuffer], { type: options.usePNG ? 'image/png' : 'image/jpeg' });
                 const url = URL.createObjectURL(blob);
                 
                 await new Promise((resolve) => {
@@ -760,7 +773,7 @@ async function exportPrintSheetsMulti(zip, cards, options, updateProgress) {
             await new Promise(resolve => setTimeout(resolve, 200));
         }
         
-        // Convert canvas to blob
+        // Convert canvas to blob - Always use JPG for print sheets to keep file size manageable
         const blob = await new Promise(resolve => {
             canvas.toBlob(resolve, 'image/jpeg', 0.95);
         });
@@ -787,15 +800,16 @@ async function exportByCategorySeparate(allCards, options = {}) {
     };
     
     const sizeDescription = sizeNames[options.size] || options.size;
+    const formatDescription = options.usePNG ? 'PNG' : 'JPG';
     
-    if (!confirm(`This will generate ${types.length} separate ZIP files (${totalCards} total cards at ${sizeDescription} pixels). This may take a while. Continue?`)) {
+    if (!confirm(`This will generate ${types.length} separate ZIP files (${totalCards} total cards at ${sizeDescription} pixels in ${formatDescription} format). This may take a while. Continue?`)) {
         return;
     }
     
     for (const type of types) {
         const cards = cardsByType[type];
         if (cards.length > 0) {
-            if (confirm(`Generate ZIP for ${type} (${cards.length} cards at ${sizeDescription} pixels)?`)) {
+            if (confirm(`Generate ZIP for ${type} (${cards.length} cards at ${sizeDescription} pixels in ${formatDescription} format)?`)) {
                 const zipName = options.usePascalCase ? 
                     `AEW${type.replace(/\s+/g, '')}Cards.zip` : 
                     `AEW ${type} Cards.zip`;
@@ -859,6 +873,7 @@ function groupCardsByType(cards) {
 export async function exportAllCardsAsImagesFallback(options = {}) {
     const defaultOptions = {
         usePascalCase: false,
+        usePNG: false, // Default to JPG
         size: 'lackey',
         renderQuality: 2
     };
@@ -879,8 +894,9 @@ export async function exportAllCardsAsImagesFallback(options = {}) {
     };
     
     const sizeDescription = sizeNames[options.size] || options.size;
+    const formatDescription = options.usePNG ? 'PNG' : 'JPG';
     
-    if (!confirm(`This will download ${allCards.length} individual image files at ${sizeDescription} pixels. You'll need to approve each download. Continue?`)) {
+    if (!confirm(`This will download ${allCards.length} individual image files at ${sizeDescription} pixels in ${formatDescription} format. You'll need to approve each download. Continue?`)) {
         return;
     }
     
@@ -908,18 +924,15 @@ export async function exportAllCardsAsImagesFallback(options = {}) {
             const result = await processSingleCard(card, document.body, options);
             
             // Create download link
-            const blob = new Blob([result.arrayBuffer], { 
-                type: (options.size === 'lackey' || options.size === 'lackey-hq' || options.size === 'highres') 
-                    ? 'image/png' 
-                    : 'image/jpeg' 
-            });
+            const fileExtension = options.usePNG ? '.png' : '.jpg';
+            const mimeType = options.usePNG ? 'image/png' : 'image/jpeg';
+            const blob = new Blob([result.arrayBuffer], { type: mimeType });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
             
             // Use selected filename format with card type
-            const fileName = getCleanFileName(card.title, card.card_type, options.usePascalCase) + 
-                ((options.size === 'lackey' || options.size === 'lackey-hq' || options.size === 'highres') ? '.png' : '.jpg');
+            const fileName = getCleanFileName(card.title, card.card_type, options.usePascalCase) + fileExtension;
             a.download = fileName;
             
             document.body.appendChild(a);
@@ -937,5 +950,5 @@ export async function exportAllCardsAsImagesFallback(options = {}) {
         }
     }
     
-    alert(`Downloaded ${allCards.length} card images (${CARD_WIDTH}x${CARD_HEIGHT})!`);
+    alert(`Downloaded ${allCards.length} card images (${CARD_WIDTH}x${CARD_HEIGHT}, ${formatDescription})!`);
 }
