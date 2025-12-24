@@ -115,8 +115,8 @@ export async function exportAllCardsAsImages() {
                 Export as PNG format (higher quality, larger files)
             </label>
             <small style="color: #666; display: block; margin-top: 5px;">
-                Unchecked: Export as JPG format (smaller files, good quality)<br>
-                <strong>Recommended:</strong> JPG for most uses, PNG for printing
+                Unchecked: Export as JPG format (smaller files, good quality) - <strong>RECOMMENDED</strong><br>
+                JPG works better with LackeyCCG and has smaller file sizes
             </small>
         </div>
         
