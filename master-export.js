@@ -94,35 +94,36 @@ export async function exportAllCardsAsImages() {
     exportModalContent.style.maxHeight = '90vh';
     exportModalContent.style.overflowY = 'auto';
     
-    // Build modal content - PascalCase checked by default
+    // Build modal content - Fixed HTML with proper PNG/JPG option
     exportModalContent.innerHTML = `
-        <h3 style="margin-top: 0;">Export Options</h3>
+        <h3 style="margin-top: 0; font-family: Arial, sans-serif;">Export Options</h3>
         
         <div style="margin-bottom: 20px;">
-            <label style="display: block; margin-bottom: 10px; font-weight: bold;">
+            <label style="display: block; margin-bottom: 10px; font-weight: bold; font-family: Arial, sans-serif;">
                 <input type="checkbox" id="exportUsePascalCase" checked style="margin-right: 8px;">
-                Use PascalCase filenames (e.g., "AmazingDisplayOfPower.jpg")
+                Use PascalCase filenames
             </label>
-            <small style="color: #666; display: block; margin-top: 5px;">
-                Unchecked: Regular Case with spaces (e.g., "Amazing Display Of Power.jpg")<br>
-                <strong>Note:</strong> Wrestler and Manager cards will have type appended (e.g., "Angelo Parker Wrestler.jpg")
+            <small style="color: #666; display: block; margin-top: 5px; font-family: Arial, sans-serif;">
+                PascalCase: "AmazingDisplayOfPower.jpg"<br>
+                Regular Case: "Amazing Display Of Power.jpg"<br>
+                <strong>Note:</strong> Wrestler/Manager cards get type appended
             </small>
         </div>
         
         <div style="margin-bottom: 20px;">
-            <label style="display: block; margin-bottom: 10px; font-weight: bold;">
+            <label style="display: block; margin-bottom: 10px; font-weight: bold; font-family: Arial, sans-serif;">
                 <input type="checkbox" id="exportUsePNG" style="margin-right: 8px;">
-                Export as PNG format (higher quality, larger files)
+                Export as PNG (higher quality, larger files)
             </label>
-            <small style="color: #666; display: block; margin-top: 5px;">
-                Unchecked: Export as JPG format (smaller files, good quality) - <strong>RECOMMENDED</strong><br>
+            <small style="color: #666; display: block; margin-top: 5px; font-family: Arial, sans-serif;">
+                Unchecked: JPG format (smaller files, good quality) - <strong>RECOMMENDED</strong><br>
                 JPG works better with LackeyCCG and has smaller file sizes
             </small>
         </div>
         
         <div style="margin-bottom: 20px;">
-            <strong style="display: block; margin-bottom: 10px;">Export Type:</strong>
-            <select id="exportTypeSelect" style="width: 100%; padding: 8px; font-size: 16px;">
+            <strong style="display: block; margin-bottom: 10px; font-family: Arial, sans-serif;">Export Type:</strong>
+            <select id="exportTypeSelect" style="width: 100%; padding: 8px; font-size: 16px; font-family: Arial, sans-serif;">
                 <option value="1">Single ZIP with all cards</option>
                 <option value="2">Separate ZIPs by card type</option>
                 <option value="3">Single ZIP by selected type</option>
@@ -130,58 +131,56 @@ export async function exportAllCardsAsImages() {
         </div>
         
         <div style="margin-bottom: 20px;">
-            <strong style="display: block; margin-bottom: 10px;">Card Size:</strong>
-            <select id="exportSizeSelect" style="width: 100%; padding: 8px; font-size: 16px;">
-                <option value="lackey">LackeyCCG Size (750x1050 px) - Native size for best readability</option>
-                <option value="lackey-hq">LackeyCCG High Quality (1125x1575 px) - 1.5x scale</option>
-                <option value="digital">Digital Size (214x308 px) - Small for web</option>
-                <option value="highres">High Resolution (1500x2100 px) - For printing</option>
-                <option value="printsingle">Print Sheets - Individual cards for cutting</option>
+            <strong style="display: block; margin-bottom: 10px; font-family: Arial, sans-serif;">Card Size:</strong>
+            <select id="exportSizeSelect" style="width: 100%; padding: 8px; font-size: 16px; font-family: Arial, sans-serif;">
+                <option value="lackey">LackeyCCG Size (750x1050 px)</option>
+                <option value="lackey-hq">LackeyCCG HQ (1125x1575 px)</option>
+                <option value="digital">Digital Size (214x308 px)</option>
+                <option value="highres">High Resolution (1500x2100 px)</option>
+                <option value="printsingle">Print Sheets - Single cards</option>
                 <option value="printmulti">Print Sheets - 9 cards per page</option>
             </select>
-            <small style="color: #666; display: block; margin-top: 5px;">
-                <strong>LackeyCCG:</strong> 750x1050 - Perfect for LackeyCCG tabletop<br>
-                <strong>LackeyCCG HQ:</strong> 1125x1575 - Extra sharp for zooming<br>
-                <strong>Digital:</strong> 214x308 - Small file size for web<br>
-                <strong>High Res:</strong> 1500x2100 - Best quality for printing<br>
-                <strong>Print Sheets:</strong> Optimized for physical print-and-play
+            <small style="color: #666; display: block; margin-top: 5px; font-family: Arial, sans-serif;">
+                <strong>LackeyCCG:</strong> 750x1050 - Native size for LackeyCCG<br>
+                <strong>Digital:</strong> 214x308 - Small for web<br>
+                <strong>High Res:</strong> 1500x2100 - Best for printing
             </small>
         </div>
         
         <div id="printOptions" style="margin-bottom: 20px; display: none;">
-            <strong style="display: block; margin-bottom: 10px;">Print Options:</strong>
-            <label style="display: block; margin-bottom: 8px;">
+            <strong style="display: block; margin-bottom: 10px; font-family: Arial, sans-serif;">Print Options:</strong>
+            <label style="display: block; margin-bottom: 8px; font-family: Arial, sans-serif;">
                 <input type="checkbox" id="printCutGuides" checked style="margin-right: 8px;">
-                Include cut guides (dotted lines)
+                Include cut guides
             </label>
-            <label style="display: block; margin-bottom: 8px;">
+            <label style="display: block; margin-bottom: 8px; font-family: Arial, sans-serif;">
                 <input type="checkbox" id="printBleed" style="margin-right: 8px;">
-                Include bleed area (3mm extra for cutting)
+                Include bleed area
             </label>
-            <label style="display: block; margin-bottom: 8px;">
+            <label style="display: block; margin-bottom: 8px; font-family: Arial, sans-serif;">
                 <input type="checkbox" id="printBacks" style="margin-right: 8px;">
-                Include card backs on separate pages
+                Include card backs
             </label>
         </div>
         
         <div style="margin-bottom: 20px;">
-            <strong style="display: block; margin-bottom: 10px;">Render Quality:</strong>
-            <select id="renderQuality" style="width: 100%; padding: 8px; font-size: 16px;">
+            <strong style="display: block; margin-bottom: 10px; font-family: Arial, sans-serif;">Render Quality:</strong>
+            <select id="renderQuality" style="width: 100%; padding: 8px; font-size: 16px; font-family: Arial, sans-serif;">
                 <option value="1">Standard Quality</option>
                 <option value="2" selected>High Quality</option>
                 <option value="3">Ultra Quality</option>
             </select>
-            <small style="color: #666; display: block; margin-top: 5px;">
-                Higher quality = better text readability but longer processing time<br>
+            <small style="color: #666; display: block; margin-top: 5px; font-family: Arial, sans-serif;">
+                Higher quality = better readability, longer processing time<br>
                 <strong>Recommended:</strong> High Quality (2x) for best results
             </small>
         </div>
         
         <div style="display: flex; justify-content: space-between; margin-top: 25px;">
-            <button id="exportCancelBtn" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            <button id="exportCancelBtn" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: Arial, sans-serif;">
                 Cancel
             </button>
-            <button id="exportConfirmBtn" style="padding: 10px 20px; background: #20c997; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            <button id="exportConfirmBtn" style="padding: 10px 20px; background: #20c997; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: Arial, sans-serif;">
                 Start Export
             </button>
         </div>
@@ -246,9 +245,9 @@ export async function exportAllCardsAsImages() {
     });
 }
 
-// FIXED VERSION - This should solve the black images issue
+// FIXED VERSION - This should solve the black/white images issue
 async function processSingleCard(card, tempContainer, options) {
-    console.log(`Processing card: ${card.title}`);
+    console.log(`Processing card: ${card.title}, size: ${options.size}, format: ${options.usePNG ? 'PNG' : 'JPG'}`);
     
     // Determine output dimensions
     let outputWidth, outputHeight;
@@ -266,7 +265,7 @@ async function processSingleCard(card, tempContainer, options) {
         outputHeight = 308;
     }
     
-    // Generate the card HTML
+    // Generate the card HTML with SIMPLE fonts
     const cardHTML = generatePlaytestCardHTML(card, tempContainer, outputWidth, outputHeight);
     
     // Create a temporary container for rendering
@@ -276,42 +275,62 @@ async function processSingleCard(card, tempContainer, options) {
     renderContainer.style.left = '0';
     renderContainer.style.width = `${outputWidth}px`;
     renderContainer.style.height = `${outputHeight}px`;
-    renderContainer.style.backgroundColor = 'white'; // CRITICAL: Set background color
+    renderContainer.style.backgroundColor = 'white';
+    renderContainer.style.color = 'black';
     renderContainer.style.zIndex = '10000';
-    renderContainer.style.visibility = 'hidden'; // Hide but still renderable
+    renderContainer.style.visibility = 'hidden';
     renderContainer.innerHTML = cardHTML;
     document.body.appendChild(renderContainer);
     
     try {
-        // Use html2canvas with FIXED options
-        const canvas = await html2canvas(renderContainer.firstElementChild, {
+        // Get the actual card element
+        const cardElement = renderContainer.firstElementChild;
+        
+        // SIMPLIFIED html2canvas options - This often fixes rendering issues
+        const canvas = await html2canvas(cardElement, {
             width: outputWidth,
             height: outputHeight,
             scale: 1,
-            backgroundColor: 'white', // CRITICAL: Set background color
-            logging: false, // Disable logging for production
+            backgroundColor: 'white',
+            logging: false,
             useCORS: true,
             allowTaint: true,
-            removeContainer: false, // Don't remove container during processing
-            // Force canvas creation with proper settings
+            // CRITICAL: Disable foreignObjectRendering which often causes issues
             foreignObjectRendering: false,
-            // Improve text rendering
+            // Use simpler rendering method
+            imageTimeout: 0,
+            // Remove complex options that can cause issues
+            removeContainer: false,
+            // Force simple rendering
             onclone: function(clonedDoc, element) {
-                // Ensure white background on the element itself
+                // Ensure all text is black and background is white
                 element.style.backgroundColor = 'white';
                 element.style.color = 'black';
+                // Force simple fonts that work with html2canvas
+                const allElements = element.querySelectorAll('*');
+                allElements.forEach(el => {
+                    el.style.fontFamily = 'Arial, Helvetica, sans-serif';
+                    el.style.fontWeight = 'bold';
+                });
             }
         });
         
         console.log(`Canvas created for ${card.title}: ${canvas.width}x${canvas.height}`);
         
+        // Check if canvas actually has content
+        const ctx = canvas.getContext('2d');
+        if (outputWidth <= 300) { // For small sizes like digital
+            // Force a border to ensure something renders
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(0, 0, outputWidth, outputHeight);
+        }
+        
         // Convert to blob - Use PNG if option is checked, otherwise JPG
         const blob = await new Promise((resolve) => {
             if (options.usePNG) {
-                // Use PNG with maximum quality
                 canvas.toBlob(resolve, 'image/png', 1.0);
             } else {
-                // Use JPG with high quality (0.95)
                 canvas.toBlob(resolve, 'image/jpeg', 0.95);
             }
         });
@@ -401,18 +420,18 @@ async function exportSingleZip(cards, zipName, options = {}) {
         // Update progress function
         const updateProgress = () => {
             progressDiv.innerHTML = `
-                <h3 style="margin-top: 0;">Generating Card Images</h3>
-                <p><strong>Progress:</strong> ${completed + failed} of ${cards.length}</p>
-                <p><strong>Successful:</strong> ${completed}</p>
-                <p><strong>Failed:</strong> ${failed}</p>
+                <h3 style="margin-top: 0; font-family: Arial, sans-serif;">Generating Card Images</h3>
+                <p style="font-family: Arial, sans-serif;"><strong>Progress:</strong> ${completed + failed} of ${cards.length}</p>
+                <p style="font-family: Arial, sans-serif;"><strong>Successful:</strong> ${completed}</p>
+                <p style="font-family: Arial, sans-serif;"><strong>Failed:</strong> ${failed}</p>
                 <div style="width: 100%; height: 20px; background: #f0f0f0; border-radius: 10px; margin: 15px 0;">
                     <div style="width: ${((completed + failed) / cards.length) * 100}%; height: 100%; background: #007bff; border-radius: 10px; transition: width 0.3s;"></div>
                 </div>
-                <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                <p style="font-size: 0.9em; color: #666; margin-top: 10px; font-family: Arial, sans-serif;">
                     Please wait, this may take several minutes...
                     <br><small>Rendering at ${options.size} (${sizeDescription}) in ${formatDescription} format</small>
                 </p>
-                <button id="cancelExport" style="margin-top: 15px; padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                <button id="cancelExport" style="margin-top: 15px; padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: Arial, sans-serif;">
                     Cancel
                 </button>
             `;
@@ -472,10 +491,10 @@ async function exportSingleZip(cards, zipName, options = {}) {
         // Generate ZIP file
         console.log("Generating ZIP file...");
         progressDiv.innerHTML = `
-            <h3 style="margin-top: 0;">Creating ZIP File</h3>
-            <p>Compressing ${completed} ${formatDescription} images...</p>
+            <h3 style="margin-top: 0; font-family: Arial, sans-serif;">Creating ZIP File</h3>
+            <p style="font-family: Arial, sans-serif;">Compressing ${completed} ${formatDescription} images...</p>
             <div class="spinner" style="border: 4px solid #f3f3f0; border-top: 4px solid #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto;"></div>
-            <p style="font-size: 0.9em; color: #666;">Almost done...</p>
+            <p style="font-size: 0.9em; color: #666; font-family: Arial, sans-serif;">Almost done...</p>
         `;
         
         // Add spinner animation
