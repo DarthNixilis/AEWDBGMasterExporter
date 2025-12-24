@@ -10,10 +10,7 @@ function getCleanFileName(cardTitle, cardType, usePascalCase = false) {
     if (usePascalCase) {
         cleanTitle = toPascalCase(cardTitle);
     } else {
-        // Remove special characters but keep spaces
         cleanTitle = cardTitle.replace(/[^a-zA-Z0-9\s]/g, '');
-        
-        // Convert to title case (capitalize first letter of each word)
         cleanTitle = cleanTitle
             .toLowerCase()
             .split(' ')
@@ -21,12 +18,11 @@ function getCleanFileName(cardTitle, cardType, usePascalCase = false) {
             .join(' ');
     }
     
-    // Add card type to filename for Wrestler and Manager cards
     if (cardType === 'Wrestler' || cardType === 'Manager') {
         if (usePascalCase) {
-            return cleanTitle + cardType; // e.g., "AngeloParkerWrestler"
+            return cleanTitle + cardType;
         } else {
-            return cleanTitle + ' ' + cardType; // e.g., "Angelo Parker Wrestler"
+            return cleanTitle + ' ' + cardType;
         }
     }
     
@@ -39,7 +35,6 @@ async function loadJSZip() {
         return window.JSZip;
     }
     
-    // Try to load JSZip from CDN
     try {
         const script = document.createElement('script');
         script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
@@ -71,7 +66,7 @@ export async function exportAllCardsAsImages() {
         return;
     }
     
-    // Create modal for export options
+    // SIMPLIFIED export modal - just basic options
     const exportModal = document.createElement('div');
     exportModal.style.position = 'fixed';
     exportModal.style.top = '0';
@@ -89,12 +84,9 @@ export async function exportAllCardsAsImages() {
     exportModalContent.style.padding = '30px';
     exportModalContent.style.borderRadius = '10px';
     exportModalContent.style.boxShadow = '0 0 20px rgba(0,0,0,0.3)';
-    exportModalContent.style.width = '500px';
+    exportModalContent.style.width = '400px';
     exportModalContent.style.maxWidth = '90%';
-    exportModalContent.style.maxHeight = '90vh';
-    exportModalContent.style.overflowY = 'auto';
     
-    // Build modal content - Fixed HTML with proper PNG/JPG option
     exportModalContent.innerHTML = `
         <h3 style="margin-top: 0; font-family: Arial, sans-serif;">Export Options</h3>
         
@@ -103,77 +95,25 @@ export async function exportAllCardsAsImages() {
                 <input type="checkbox" id="exportUsePascalCase" checked style="margin-right: 8px;">
                 Use PascalCase filenames
             </label>
-            <small style="color: #666; display: block; margin-top: 5px; font-family: Arial, sans-serif;">
-                PascalCase: "AmazingDisplayOfPower.jpg"<br>
-                Regular Case: "Amazing Display Of Power.jpg"<br>
-                <strong>Note:</strong> Wrestler/Manager cards get type appended
-            </small>
         </div>
         
         <div style="margin-bottom: 20px;">
             <label style="display: block; margin-bottom: 10px; font-weight: bold; font-family: Arial, sans-serif;">
                 <input type="checkbox" id="exportUsePNG" style="margin-right: 8px;">
-                Export as PNG (higher quality, larger files)
+                Export as PNG (higher quality)
             </label>
             <small style="color: #666; display: block; margin-top: 5px; font-family: Arial, sans-serif;">
-                Unchecked: JPG format (smaller files, good quality) - <strong>RECOMMENDED</strong><br>
-                JPG works better with LackeyCCG and has smaller file sizes
+                Unchecked = JPG (smaller files, recommended)
             </small>
-        </div>
-        
-        <div style="margin-bottom: 20px;">
-            <strong style="display: block; margin-bottom: 10px; font-family: Arial, sans-serif;">Export Type:</strong>
-            <select id="exportTypeSelect" style="width: 100%; padding: 8px; font-size: 16px; font-family: Arial, sans-serif;">
-                <option value="1">Single ZIP with all cards</option>
-                <option value="2">Separate ZIPs by card type</option>
-                <option value="3">Single ZIP by selected type</option>
-            </select>
         </div>
         
         <div style="margin-bottom: 20px;">
             <strong style="display: block; margin-bottom: 10px; font-family: Arial, sans-serif;">Card Size:</strong>
             <select id="exportSizeSelect" style="width: 100%; padding: 8px; font-size: 16px; font-family: Arial, sans-serif;">
-                <option value="lackey">LackeyCCG Size (750x1050 px)</option>
-                <option value="lackey-hq">LackeyCCG HQ (1125x1575 px)</option>
-                <option value="digital">Digital Size (214x308 px)</option>
-                <option value="highres">High Resolution (1500x2100 px)</option>
-                <option value="printsingle">Print Sheets - Single cards</option>
-                <option value="printmulti">Print Sheets - 9 cards per page</option>
+                <option value="lackey">LackeyCCG (750x1050 px)</option>
+                <option value="digital">Digital (214x308 px)</option>
+                <option value="highres">High Res (1500x2100 px)</option>
             </select>
-            <small style="color: #666; display: block; margin-top: 5px; font-family: Arial, sans-serif;">
-                <strong>LackeyCCG:</strong> 750x1050 - Native size for LackeyCCG<br>
-                <strong>Digital:</strong> 214x308 - Small for web<br>
-                <strong>High Res:</strong> 1500x2100 - Best for printing
-            </small>
-        </div>
-        
-        <div id="printOptions" style="margin-bottom: 20px; display: none;">
-            <strong style="display: block; margin-bottom: 10px; font-family: Arial, sans-serif;">Print Options:</strong>
-            <label style="display: block; margin-bottom: 8px; font-family: Arial, sans-serif;">
-                <input type="checkbox" id="printCutGuides" checked style="margin-right: 8px;">
-                Include cut guides
-            </label>
-            <label style="display: block; margin-bottom: 8px; font-family: Arial, sans-serif;">
-                <input type="checkbox" id="printBleed" style="margin-right: 8px;">
-                Include bleed area
-            </label>
-            <label style="display: block; margin-bottom: 8px; font-family: Arial, sans-serif;">
-                <input type="checkbox" id="printBacks" style="margin-right: 8px;">
-                Include card backs
-            </label>
-        </div>
-        
-        <div style="margin-bottom: 20px;">
-            <strong style="display: block; margin-bottom: 10px; font-family: Arial, sans-serif;">Render Quality:</strong>
-            <select id="renderQuality" style="width: 100%; padding: 8px; font-size: 16px; font-family: Arial, sans-serif;">
-                <option value="1">Standard Quality</option>
-                <option value="2" selected>High Quality</option>
-                <option value="3">Ultra Quality</option>
-            </select>
-            <small style="color: #666; display: block; margin-top: 5px; font-family: Arial, sans-serif;">
-                Higher quality = better readability, longer processing time<br>
-                <strong>Recommended:</strong> High Quality (2x) for best results
-            </small>
         </div>
         
         <div style="display: flex; justify-content: space-between; margin-top: 25px;">
@@ -189,19 +129,6 @@ export async function exportAllCardsAsImages() {
     exportModal.appendChild(exportModalContent);
     document.body.appendChild(exportModal);
     
-    // Show/hide print options based on size selection
-    const sizeSelect = document.getElementById('exportSizeSelect');
-    const printOptions = document.getElementById('printOptions');
-    
-    sizeSelect.addEventListener('change', function() {
-        if (this.value === 'printsingle' || this.value === 'printmulti') {
-            printOptions.style.display = 'block';
-        } else {
-            printOptions.style.display = 'none';
-        }
-    });
-    
-    // Wait for user selection
     return new Promise((resolve) => {
         const cancelBtn = document.getElementById('exportCancelBtn');
         const confirmBtn = document.getElementById('exportConfirmBtn');
@@ -214,119 +141,142 @@ export async function exportAllCardsAsImages() {
         confirmBtn.onclick = async () => {
             const usePascalCase = document.getElementById('exportUsePascalCase').checked;
             const usePNG = document.getElementById('exportUsePNG').checked;
-            const exportType = document.getElementById('exportTypeSelect').value;
             const exportSize = document.getElementById('exportSizeSelect').value;
-            const renderQuality = parseInt(document.getElementById('renderQuality').value);
-            const includeCutGuides = document.getElementById('printCutGuides')?.checked || false;
-            const includeBleed = document.getElementById('printBleed')?.checked || false;
-            const includeBacks = document.getElementById('printBacks')?.checked || false;
             
             document.body.removeChild(exportModal);
             
             const exportOptions = {
                 usePascalCase,
                 usePNG,
-                size: exportSize,
-                renderQuality,
-                includeCutGuides,
-                includeBleed,
-                includeBacks
+                size: exportSize
             };
             
-            if (exportType === '1') {
-                await exportSingleZip(allCards, 'AEW-Complete-Set.zip', exportOptions);
-            } else if (exportType === '2') {
-                await exportByCategorySeparate(allCards, exportOptions);
-            } else if (exportType === '3') {
-                await exportByCategorySingle(allCards, exportOptions);
-            }
+            await exportSingleZip(allCards, 'AEW-Complete-Set.zip', exportOptions);
             resolve();
         };
     });
 }
 
-// FIXED VERSION - This should solve the black/white images issue
-async function processSingleCard(card, tempContainer, options) {
-    console.log(`Processing card: ${card.title}, size: ${options.size}, format: ${options.usePNG ? 'PNG' : 'JPG'}`);
+// SIMPLIFIED processSingleCard - FIXED VERSION
+async function processSingleCard(card, options) {
+    console.log(`Processing card: ${card.title}, size: ${options.size}`);
     
     // Determine output dimensions
     let outputWidth, outputHeight;
     if (options.size === 'lackey') {
-        outputWidth = 750;   // Native LackeyCCG size
-        outputHeight = 1050; // Native LackeyCCG size
-    } else if (options.size === 'lackey-hq') {
-        outputWidth = 1125;   // 1.5x for extra quality
-        outputHeight = 1575;  // 1.5x for extra quality
+        outputWidth = 750;
+        outputHeight = 1050;
     } else if (options.size === 'highres') {
-        outputWidth = 1500;   // 2x for printing
-        outputHeight = 2100;  // 2x for printing
+        outputWidth = 1500;
+        outputHeight = 2100;
     } else { // digital
         outputWidth = 214;
         outputHeight = 308;
     }
     
-    // Generate the card HTML with SIMPLE fonts
-    const cardHTML = generatePlaytestCardHTML(card, tempContainer, outputWidth, outputHeight);
+    // Create a temporary div for the card
+    const tempDiv = document.createElement('div');
+    tempDiv.style.position = 'absolute';
+    tempDiv.style.left = '-9999px';
+    tempDiv.style.top = '0';
+    tempDiv.style.width = `${outputWidth}px`;
+    tempDiv.style.height = `${outputHeight}px`;
+    tempDiv.style.overflow = 'visible';
     
-    // Create a temporary container for rendering
-    const renderContainer = document.createElement('div');
-    renderContainer.style.position = 'fixed';
-    renderContainer.style.top = '0';
-    renderContainer.style.left = '0';
-    renderContainer.style.width = `${outputWidth}px`;
-    renderContainer.style.height = `${outputHeight}px`;
-    renderContainer.style.backgroundColor = 'white';
-    renderContainer.style.color = 'black';
-    renderContainer.style.zIndex = '10000';
-    renderContainer.style.visibility = 'hidden';
-    renderContainer.innerHTML = cardHTML;
-    document.body.appendChild(renderContainer);
+    // Generate card HTML with VERY simple styling
+    const cardHTML = `
+        <div style="
+            width: ${outputWidth}px;
+            height: ${outputHeight}px;
+            background-color: white;
+            border: 2px solid black;
+            border-radius: 10px;
+            padding: 15px;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+            color: black;
+            position: relative;
+        ">
+            <!-- Title -->
+            <div style="
+                font-size: ${outputWidth <= 300 ? '14px' : '32px'};
+                font-weight: bold;
+                text-align: center;
+                margin-bottom: 10px;
+                border-bottom: 1px solid #ccc;
+                padding-bottom: 5px;
+            ">
+                ${card.title}
+            </div>
+            
+            <!-- Stats -->
+            <div style="
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 10px;
+                font-size: ${outputWidth <= 300 ? '12px' : '24px'};
+            ">
+                <div>
+                    <div>D: ${card.damage ?? '–'}</div>
+                    <div>M: ${card.momentum ?? '–'}</div>
+                </div>
+                <div>C: ${card.cost ?? '–'}</div>
+            </div>
+            
+            <!-- Art area -->
+            <div style="
+                height: ${outputHeight * 0.3}px;
+                background-color: #f0f0f0;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-bottom: 10px;
+                font-style: italic;
+                color: #666;
+                font-size: ${outputWidth <= 300 ? '12px' : '20px'};
+            ">
+                ${card.card_type}
+            </div>
+            
+            <!-- Text box -->
+            <div style="
+                background-color: #f8f8f8;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                padding: 10px;
+                height: ${outputHeight * 0.4}px;
+                overflow-y: auto;
+                font-size: ${outputWidth <= 300 ? '10px' : '18px'};
+                line-height: 1.3;
+            ">
+                ${card.text_box?.raw_text || ''}
+            </div>
+        </div>
+    `;
+    
+    tempDiv.innerHTML = cardHTML;
+    document.body.appendChild(tempDiv);
     
     try {
-        // Get the actual card element
-        const cardElement = renderContainer.firstElementChild;
-        
-        // SIMPLIFIED html2canvas options - This often fixes rendering issues
-        const canvas = await html2canvas(cardElement, {
+        // VERY SIMPLE html2canvas options
+        const canvas = await html2canvas(tempDiv.firstElementChild, {
             width: outputWidth,
             height: outputHeight,
             scale: 1,
             backgroundColor: 'white',
-            logging: false,
-            useCORS: true,
-            allowTaint: true,
-            // CRITICAL: Disable foreignObjectRendering which often causes issues
+            logging: true, // Enable logging to see errors
+            useCORS: false,
+            allowTaint: false,
             foreignObjectRendering: false,
-            // Use simpler rendering method
-            imageTimeout: 0,
-            // Remove complex options that can cause issues
-            removeContainer: false,
-            // Force simple rendering
-            onclone: function(clonedDoc, element) {
-                // Ensure all text is black and background is white
-                element.style.backgroundColor = 'white';
-                element.style.color = 'black';
-                // Force simple fonts that work with html2canvas
-                const allElements = element.querySelectorAll('*');
-                allElements.forEach(el => {
-                    el.style.fontFamily = 'Arial, Helvetica, sans-serif';
-                    el.style.fontWeight = 'bold';
-                });
-            }
+            imageTimeout: 10000,
+            removeContainer: false
         });
         
-        console.log(`Canvas created for ${card.title}: ${canvas.width}x${canvas.height}`);
+        console.log(`Canvas created: ${canvas.width}x${canvas.height}`);
         
-        // Check if canvas actually has content
-        const ctx = canvas.getContext('2d');
-        if (outputWidth <= 300) { // For small sizes like digital
-            // Force a border to ensure something renders
-            ctx.strokeStyle = 'black';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(0, 0, outputWidth, outputHeight);
-        }
-        
-        // Convert to blob - Use PNG if option is checked, otherwise JPG
+        // Convert to blob
         const blob = await new Promise((resolve) => {
             if (options.usePNG) {
                 canvas.toBlob(resolve, 'image/png', 1.0);
@@ -339,11 +289,8 @@ async function processSingleCard(card, tempContainer, options) {
             throw new Error('Failed to create image blob');
         }
         
-        // Convert blob to array buffer for ZIP
         const arrayBuffer = await blob.arrayBuffer();
-        
-        // Clean up
-        document.body.removeChild(renderContainer);
+        document.body.removeChild(tempDiv);
         
         return {
             arrayBuffer,
@@ -353,11 +300,8 @@ async function processSingleCard(card, tempContainer, options) {
         };
         
     } catch (error) {
-        console.error(`Error processing card "${card.title}":`, error);
-        // Clean up on error
-        if (renderContainer.parentNode) {
-            document.body.removeChild(renderContainer);
-        }
+        console.error(`Error: ${error.message}`);
+        if (tempDiv.parentNode) document.body.removeChild(tempDiv);
         throw error;
     }
 }
@@ -365,18 +309,13 @@ async function processSingleCard(card, tempContainer, options) {
 async function exportSingleZip(cards, zipName, options = {}) {
     const defaultOptions = {
         usePascalCase: false,
-        usePNG: false, // Default to JPG
-        size: 'lackey',
-        renderQuality: 2,
-        includeCutGuides: false,
-        includeBleed: false,
-        includeBacks: false
+        usePNG: false,
+        size: 'lackey'
     };
     options = { ...defaultOptions, ...options };
     
     const sizeNames = {
         'lackey': '750x1050',
-        'lackey-hq': '1125x1575',
         'digital': '214x308',
         'highres': '1500x2100'
     };
@@ -384,15 +323,14 @@ async function exportSingleZip(cards, zipName, options = {}) {
     const sizeDescription = sizeNames[options.size] || options.size;
     const formatDescription = options.usePNG ? 'PNG' : 'JPG';
     
-    if (!confirm(`This will generate a single ZIP file with ${cards.length} card images at ${sizeDescription} pixels in ${formatDescription} format. This may take several minutes. Continue?`)) {
+    if (!confirm(`Export ${cards.length} cards at ${sizeDescription} in ${formatDescription} format? This may take a few minutes.`)) {
         return;
     }
     
-    // Load JSZip
     const JSZip = await loadJSZip();
     
     try {
-        // Create progress indicator
+        // Progress indicator
         const progressDiv = document.createElement('div');
         progressDiv.id = 'exportProgress';
         progressDiv.style.position = 'fixed';
@@ -405,569 +343,113 @@ async function exportSingleZip(cards, zipName, options = {}) {
         progressDiv.style.borderRadius = '10px';
         progressDiv.style.zIndex = '9999';
         progressDiv.style.boxShadow = '0 0 30px rgba(0,0,0,0.5)';
-        progressDiv.style.minWidth = '400px';
+        progressDiv.style.minWidth = '300px';
         progressDiv.style.textAlign = 'center';
         progressDiv.style.fontFamily = 'Arial, sans-serif';
         document.body.appendChild(progressDiv);
         
-        // Create ZIP file
         const zip = new JSZip();
-        console.log("JSZip initialized");
-        
         let completed = 0;
         let failed = 0;
         
-        // Update progress function
         const updateProgress = () => {
             progressDiv.innerHTML = `
-                <h3 style="margin-top: 0; font-family: Arial, sans-serif;">Generating Card Images</h3>
-                <p style="font-family: Arial, sans-serif;"><strong>Progress:</strong> ${completed + failed} of ${cards.length}</p>
-                <p style="font-family: Arial, sans-serif;"><strong>Successful:</strong> ${completed}</p>
-                <p style="font-family: Arial, sans-serif;"><strong>Failed:</strong> ${failed}</p>
+                <h3 style="margin-top: 0;">Exporting Cards</h3>
+                <p>${completed + failed} of ${cards.length}</p>
                 <div style="width: 100%; height: 20px; background: #f0f0f0; border-radius: 10px; margin: 15px 0;">
-                    <div style="width: ${((completed + failed) / cards.length) * 100}%; height: 100%; background: #007bff; border-radius: 10px; transition: width 0.3s;"></div>
+                    <div style="width: ${((completed + failed) / cards.length) * 100}%; height: 100%; background: #007bff; border-radius: 10px;"></div>
                 </div>
-                <p style="font-size: 0.9em; color: #666; margin-top: 10px; font-family: Arial, sans-serif;">
-                    Please wait, this may take several minutes...
-                    <br><small>Rendering at ${options.size} (${sizeDescription}) in ${formatDescription} format</small>
+                <p style="font-size: 0.9em; color: #666;">
+                    ${completed} successful, ${failed} failed
                 </p>
-                <button id="cancelExport" style="margin-top: 15px; padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: Arial, sans-serif;">
+                <button id="cancelExport" style="margin-top: 15px; padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">
                     Cancel
                 </button>
             `;
             
-            // Add cancel button handler
-            const cancelBtn = document.getElementById('cancelExport');
-            if (cancelBtn) {
-                cancelBtn.onclick = () => {
-                    document.body.removeChild(progressDiv);
-                    throw new Error('Export cancelled by user');
-                };
-            }
+            document.getElementById('cancelExport').onclick = () => {
+                document.body.removeChild(progressDiv);
+                throw new Error('Export cancelled');
+            };
         };
         
         updateProgress();
         
-        // Process based on size option
-        if (options.size === 'printsingle') {
-            await exportPrintSheetsSingle(zip, cards, options, updateProgress);
-            completed = cards.length;
-        } else if (options.size === 'printmulti') {
-            await exportPrintSheetsMulti(zip, cards, options, updateProgress);
-            completed = cards.length;
-        } else {
-            // Process individual cards
-            for (let i = 0; i < cards.length; i++) {
-                const card = cards[i];
-                
-                try {
-                    console.log(`Processing card ${i + 1}: ${card.title}`);
-                    
-                    const result = await processSingleCard(card, document.body, options);
-                    
-                    if (result) {
-                        // Use the updated getCleanFileName function with card type
-                        const fileExtension = options.usePNG ? '.png' : '.jpg';
-                        const fileName = getCleanFileName(card.title, card.card_type, options.usePascalCase) + fileExtension;
-                        zip.file(fileName, result.arrayBuffer);
-                        console.log(`Added ${fileName} to ZIP (${result.width}x${result.height}, ${result.format})`);
-                        completed++;
-                    }
-                    
-                } catch (error) {
-                    console.error(`Error rendering card "${card.title}":`, error);
+        // Process cards in batches to avoid memory issues
+        const BATCH_SIZE = 5;
+        for (let i = 0; i < cards.length; i += BATCH_SIZE) {
+            const batch = cards.slice(i, i + BATCH_SIZE);
+            const promises = batch.map(card => 
+                processSingleCard(card, options).catch(error => {
+                    console.error(`Failed ${card.title}:`, error);
                     failed++;
+                    return null;
+                })
+            );
+            
+            const results = await Promise.all(promises);
+            
+            for (const result of results) {
+                if (result) {
+                    const fileExtension = options.usePNG ? '.png' : '.jpg';
+                    const fileName = getCleanFileName(result.card?.title || 'Card', result.card?.card_type, options.usePascalCase) + fileExtension;
+                    zip.file(fileName, result.arrayBuffer);
+                    completed++;
                 }
-                
-                updateProgress();
-                await new Promise(resolve => setTimeout(resolve, 100)); // Small delay between cards
             }
+            
+            updateProgress();
+            await new Promise(resolve => setTimeout(resolve, 500)); // Delay between batches
         }
         
         if (completed === 0) {
-            throw new Error('Failed to generate any card images');
+            throw new Error('No cards were successfully generated');
         }
         
-        // Generate ZIP file
-        console.log("Generating ZIP file...");
         progressDiv.innerHTML = `
-            <h3 style="margin-top: 0; font-family: Arial, sans-serif;">Creating ZIP File</h3>
-            <p style="font-family: Arial, sans-serif;">Compressing ${completed} ${formatDescription} images...</p>
+            <h3 style="margin-top: 0;">Creating ZIP File</h3>
+            <p>Compressing ${completed} images...</p>
             <div class="spinner" style="border: 4px solid #f3f3f0; border-top: 4px solid #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto;"></div>
-            <p style="font-size: 0.9em; color: #666; font-family: Arial, sans-serif;">Almost done...</p>
         `;
         
-        // Add spinner animation
         const style = document.createElement('style');
-        style.textContent = `
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-        `;
+        style.textContent = `@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`;
         document.head.appendChild(style);
         
-        // Generate ZIP blob
-        console.log("Starting ZIP generation...");
         const zipBlob = await zip.generateAsync({ 
             type: 'blob',
-            compression: 'DEFLATE',
-            compressionOptions: {
-                level: 6
-            }
+            compression: 'DEFLATE'
         });
-        console.log("ZIP generated successfully");
         
-        // Create download link
         const url = URL.createObjectURL(zipBlob);
         const a = document.createElement('a');
         a.href = url;
         a.download = zipName;
         
-        // Clean up
         document.body.removeChild(progressDiv);
         document.head.removeChild(style);
         
-        // Trigger download
-        console.log("Triggering download...");
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         
-        // Clean up URL
-        setTimeout(() => {
-            URL.revokeObjectURL(url);
-            console.log("URL revoked");
-        }, 10000);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
         
-        // Show completion message
-        setTimeout(() => {
-            let sizeInfo = '';
-            if (options.size === 'lackey') sizeInfo = ' (750x1050 px)';
-            else if (options.size === 'lackey-hq') sizeInfo = ' (1125x1575 px)';
-            else if (options.size === 'digital') sizeInfo = ' (214x308 px)';
-            else if (options.size === 'highres') sizeInfo = ' (1500x2100 px)';
-            else if (options.size === 'printsingle') sizeInfo = ' - Print Sheets';
-            else if (options.size === 'printmulti') sizeInfo = ' - Multi-card Sheets';
-            
-            alert(`Successfully generated ${zipName} with ${completed} card images in ${formatDescription} format${sizeInfo}! ${failed > 0 ? `(${failed} failed to generate)` : ''}`);
-        }, 500);
+        alert(`Exported ${completed} cards successfully! ${failed > 0 ? `(${failed} failed)` : ''}`);
         
     } catch (error) {
-        console.error("Error in exportSingleZip:", error);
-        
-        // Cleanup
         const progressDiv = document.getElementById('exportProgress');
         if (progressDiv && progressDiv.parentNode) {
             document.body.removeChild(progressDiv);
         }
         
-        if (error.message !== 'Export cancelled by user') {
-            alert(`Error: ${error.message}\n\nCheck console for details.`);
+        if (error.message !== 'Export cancelled') {
+            alert(`Export failed: ${error.message}`);
         }
     }
 }
 
-async function exportPrintSheetsSingle(zip, cards, options, updateProgress) {
-    const CARDS_PER_PAGE = 1;
-    const BLEED_MM = options.includeBleed ? 3 : 0;
-    const CUT_GUIDE_WIDTH = 2;
-    
-    // A4 paper size at 300 DPI
-    const DPI = 300;
-    const PAPER_WIDTH_MM = 210;
-    const PAPER_HEIGHT_MM = 297;
-    const PAPER_WIDTH_PX = Math.round(PAPER_WIDTH_MM * DPI / 25.4);
-    const PAPER_HEIGHT_PX = Math.round(PAPER_HEIGHT_MM * DPI / 25.4);
-    
-    // Standard card size in mm (63x88)
-    const CARD_WIDTH_MM = 63;
-    const CARD_HEIGHT_MM = 88;
-    const CARD_WIDTH_PX = Math.round((CARD_WIDTH_MM + BLEED_MM * 2) * DPI / 25.4);
-    const CARD_HEIGHT_PX = Math.round((CARD_HEIGHT_MM + BLEED_MM * 2) * DPI / 25.4);
-    
-    // Center card on page
-    const CARD_X = Math.round((PAPER_WIDTH_PX - CARD_WIDTH_PX) / 2);
-    const CARD_Y = Math.round((PAPER_HEIGHT_PX - CARD_HEIGHT_PX) / 2);
-    
-    for (let page = 0; page < Math.ceil(cards.length / CARDS_PER_PAGE); page++) {
-        const startIndex = page * CARDS_PER_PAGE;
-        const endIndex = Math.min(startIndex + CARDS_PER_PAGE, cards.length);
-        const cardsOnThisPage = cards.slice(startIndex, endIndex);
-        
-        const canvas = document.createElement('canvas');
-        canvas.width = PAPER_WIDTH_PX;
-        canvas.height = PAPER_HEIGHT_PX;
-        const ctx = canvas.getContext('2d');
-        
-        // White background
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        for (let i = 0; i < cardsOnThisPage.length; i++) {
-            const card = cardsOnThisPage[i];
-            
-            try {
-                // Generate card at high resolution
-                const result = await processSingleCard(card, document.body, { ...options, size: 'highres' });
-                
-                // Create temporary canvas for the card
-                const cardCanvas = document.createElement('canvas');
-                cardCanvas.width = result.width;
-                cardCanvas.height = result.height;
-                const cardCtx = cardCanvas.getContext('2d');
-                
-                // Draw the card image
-                const img = new Image();
-                const blob = new Blob([result.arrayBuffer], { type: options.usePNG ? 'image/png' : 'image/jpeg' });
-                const url = URL.createObjectURL(blob);
-                
-                await new Promise((resolve) => {
-                    img.onload = () => {
-                        cardCtx.drawImage(img, 0, 0);
-                        URL.revokeObjectURL(url);
-                        resolve();
-                    };
-                    img.src = url;
-                });
-                
-                // Enable high-quality scaling
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                
-                // Draw card onto sheet
-                ctx.drawImage(cardCanvas, CARD_X, CARD_Y, CARD_WIDTH_PX, CARD_HEIGHT_PX);
-                
-                // Add cut guides if requested
-                if (options.includeCutGuides) {
-                    ctx.strokeStyle = '#0000FF';
-                    ctx.setLineDash([5, 5]);
-                    ctx.lineWidth = CUT_GUIDE_WIDTH;
-                    
-                    // Outer cut line (with bleed)
-                    ctx.strokeRect(
-                        CARD_X - BLEED_MM * DPI / 25.4,
-                        CARD_Y - BLEED_MM * DPI / 25.4,
-                        CARD_WIDTH_PX + BLEED_MM * 2 * DPI / 25.4,
-                        CARD_HEIGHT_PX + BLEED_MM * 2 * DPI / 25.4
-                    );
-                    
-                    // Inner safe area (without bleed)
-                    ctx.strokeStyle = '#FF0000';
-                    ctx.strokeRect(CARD_X, CARD_Y, CARD_WIDTH_PX, CARD_HEIGHT_PX);
-                    
-                    ctx.setLineDash([]);
-                }
-                
-                updateProgress();
-                
-            } catch (error) {
-                console.error(`Error rendering card "${card.title}":`, error);
-            }
-            
-            await new Promise(resolve => setTimeout(resolve, 200));
-        }
-        
-        // Convert canvas to blob - Always use JPG for print sheets to keep file size manageable
-        const blob = await new Promise(resolve => {
-            canvas.toBlob(resolve, 'image/jpeg', 0.95);
-        });
-        
-        if (blob) {
-            const arrayBuffer = await blob.arrayBuffer();
-            const pageNum = page + 1;
-            const card = cardsOnThisPage[0];
-            const fileName = getCleanFileName(card.title, card.card_type, options.usePascalCase) + ' Sheet.jpg';
-            zip.file(fileName, arrayBuffer);
-        }
-    }
-}
-
-async function exportPrintSheetsMulti(zip, cards, options, updateProgress) {
-    // Implementation similar to exportPrintSheetsSingle but with 9 cards per page
-    const CARDS_PER_PAGE = 9;
-    const BLEED_MM = options.includeBleed ? 3 : 0;
-    const CUT_GUIDE_WIDTH = 2;
-    
-    // A4 paper size at 300 DPI
-    const DPI = 300;
-    const PAPER_WIDTH_MM = 210;
-    const PAPER_HEIGHT_MM = 297;
-    const PAPER_WIDTH_PX = Math.round(PAPER_WIDTH_MM * DPI / 25.4);
-    const PAPER_HEIGHT_PX = Math.round(PAPER_HEIGHT_MM * DPI / 25.4);
-    
-    // Standard card size in mm (63x88)
-    const CARD_WIDTH_MM = 63;
-    const CARD_HEIGHT_MM = 88;
-    const CARD_WIDTH_PX = Math.round((CARD_WIDTH_MM + BLEED_MM * 2) * DPI / 25.4);
-    const CARD_HEIGHT_PX = Math.round((CARD_HEIGHT_MM + BLEED_MM * 2) * DPI / 25.4);
-    
-    // 3x3 grid layout
-    const GRID_COLS = 3;
-    const GRID_ROWS = 3;
-    const HORIZONTAL_GAP = Math.round((PAPER_WIDTH_PX - (CARD_WIDTH_PX * GRID_COLS)) / (GRID_COLS + 1));
-    const VERTICAL_GAP = Math.round((PAPER_HEIGHT_PX - (CARD_HEIGHT_PX * GRID_ROWS)) / (GRID_ROWS + 1));
-    
-    for (let page = 0; page < Math.ceil(cards.length / CARDS_PER_PAGE); page++) {
-        const startIndex = page * CARDS_PER_PAGE;
-        const endIndex = Math.min(startIndex + CARDS_PER_PAGE, cards.length);
-        const cardsOnThisPage = cards.slice(startIndex, endIndex);
-        
-        const canvas = document.createElement('canvas');
-        canvas.width = PAPER_WIDTH_PX;
-        canvas.height = PAPER_HEIGHT_PX;
-        const ctx = canvas.getContext('2d');
-        
-        // White background
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        for (let i = 0; i < cardsOnThisPage.length; i++) {
-            const card = cardsOnThisPage[i];
-            
-            try {
-                // Generate card at high resolution
-                const result = await processSingleCard(card, document.body, { ...options, size: 'highres' });
-                
-                // Create temporary canvas for the card
-                const cardCanvas = document.createElement('canvas');
-                cardCanvas.width = result.width;
-                cardCanvas.height = result.height;
-                const cardCtx = cardCanvas.getContext('2d');
-                
-                // Draw the card image
-                const img = new Image();
-                const blob = new Blob([result.arrayBuffer], { type: options.usePNG ? 'image/png' : 'image/jpeg' });
-                const url = URL.createObjectURL(blob);
-                
-                await new Promise((resolve) => {
-                    img.onload = () => {
-                        cardCtx.drawImage(img, 0, 0);
-                        URL.revokeObjectURL(url);
-                        resolve();
-                    };
-                    img.src = url;
-                });
-                
-                // Calculate position in grid
-                const row = Math.floor(i / GRID_COLS);
-                const col = i % GRID_COLS;
-                const x = HORIZONTAL_GAP + col * (CARD_WIDTH_PX + HORIZONTAL_GAP);
-                const y = VERTICAL_GAP + row * (CARD_HEIGHT_PX + VERTICAL_GAP);
-                
-                // Enable high-quality scaling
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                
-                // Draw card onto sheet
-                ctx.drawImage(cardCanvas, x, y, CARD_WIDTH_PX, CARD_HEIGHT_PX);
-                
-                // Add cut guides if requested
-                if (options.includeCutGuides) {
-                    ctx.strokeStyle = '#0000FF';
-                    ctx.setLineDash([5, 5]);
-                    ctx.lineWidth = CUT_GUIDE_WIDTH;
-                    
-                    // Outer cut line (with bleed)
-                    ctx.strokeRect(
-                        x - BLEED_MM * DPI / 25.4,
-                        y - BLEED_MM * DPI / 25.4,
-                        CARD_WIDTH_PX + BLEED_MM * 2 * DPI / 25.4,
-                        CARD_HEIGHT_PX + BLEED_MM * 2 * DPI / 25.4
-                    );
-                    
-                    // Inner safe area (without bleed)
-                    ctx.strokeStyle = '#FF0000';
-                    ctx.strokeRect(x, y, CARD_WIDTH_PX, CARD_HEIGHT_PX);
-                    
-                    ctx.setLineDash([]);
-                }
-                
-                updateProgress();
-                
-            } catch (error) {
-                console.error(`Error rendering card "${card.title}":`, error);
-            }
-            
-            await new Promise(resolve => setTimeout(resolve, 200));
-        }
-        
-        // Convert canvas to blob - Always use JPG for print sheets to keep file size manageable
-        const blob = await new Promise(resolve => {
-            canvas.toBlob(resolve, 'image/jpeg', 0.95);
-        });
-        
-        if (blob) {
-            const arrayBuffer = await blob.arrayBuffer();
-            const pageNum = page + 1;
-            const fileName = `Print Sheet ${pageNum}.jpg`;
-            zip.file(fileName, arrayBuffer);
-        }
-    }
-}
-
-async function exportByCategorySeparate(allCards, options = {}) {
-    const cardsByType = groupCardsByType(allCards);
-    const types = Object.keys(cardsByType).filter(type => cardsByType[type].length > 0);
-    const totalCards = Object.values(cardsByType).reduce((sum, cards) => sum + cards.length, 0);
-    
-    const sizeNames = {
-        'lackey': '750x1050',
-        'lackey-hq': '1125x1575',
-        'digital': '214x308',
-        'highres': '1500x2100'
-    };
-    
-    const sizeDescription = sizeNames[options.size] || options.size;
-    const formatDescription = options.usePNG ? 'PNG' : 'JPG';
-    
-    if (!confirm(`This will generate ${types.length} separate ZIP files (${totalCards} total cards at ${sizeDescription} pixels in ${formatDescription} format). This may take a while. Continue?`)) {
-        return;
-    }
-    
-    for (const type of types) {
-        const cards = cardsByType[type];
-        if (cards.length > 0) {
-            if (confirm(`Generate ZIP for ${type} (${cards.length} cards at ${sizeDescription} pixels in ${formatDescription} format)?`)) {
-                const zipName = options.usePascalCase ? 
-                    `AEW${type.replace(/\s+/g, '')}Cards.zip` : 
-                    `AEW ${type} Cards.zip`;
-                await exportSingleZip(cards, zipName, options);
-                // Small delay between downloads
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-        }
-    }
-    
-    alert('All category ZIP files have been generated!');
-}
-
-async function exportByCategorySingle(allCards, options = {}) {
-    const cardsByType = groupCardsByType(allCards);
-    const types = Object.keys(cardsByType).filter(type => cardsByType[type].length > 0);
-    
-    let typeList = '';
-    types.forEach((type, i) => {
-        typeList += `${i + 1}. ${type} (${cardsByType[type].length} cards)\n`;
-    });
-    
-    const selectedType = prompt(
-        `Select card type to export:\n${typeList}\nEnter number or type name:`
-    );
-    
-    if (!selectedType) return;
-    
-    let typeIndex = parseInt(selectedType) - 1;
-    let selectedTypeName = types[typeIndex] || selectedType;
-    
-    if (cardsByType[selectedTypeName] && cardsByType[selectedTypeName].length > 0) {
-        const cards = cardsByType[selectedTypeName];
-        const zipName = options.usePascalCase ? 
-            `AEW${selectedTypeName.replace(/\s+/g, '')}Cards.zip` : 
-            `AEW ${selectedTypeName} Cards.zip`;
-        await exportSingleZip(cards, zipName, options);
-    } else {
-        alert(`No cards found for type: ${selectedTypeName}`);
-    }
-}
-
-function groupCardsByType(cards) {
-    return {
-        Wrestler: cards.filter(c => c.card_type === 'Wrestler'),
-        Manager: cards.filter(c => c.card_type === 'Manager'),
-        Action: cards.filter(c => c.card_type === 'Action'),
-        Grapple: cards.filter(c => c.card_type === 'Grapple'),
-        Strike: cards.filter(c => c.card_type === 'Strike'),
-        Submission: cards.filter(c => c.card_type === 'Submission'),
-        Response: cards.filter(c => c.card_type === 'Response'),
-        // Future types (when added):
-        Boon: cards.filter(c => c.card_type === 'Boon'),
-        Injury: cards.filter(c => c.card_type === 'Injury'),
-        'Call Name': cards.filter(c => c.card_type === 'Call Name'),
-        Faction: cards.filter(c => c.card_type === 'Faction')
-    };
-}
-
-// Simple fallback version without ZIP (one-by-one download)
+// Keep other functions but they won't be used in this simplified version
 export async function exportAllCardsAsImagesFallback(options = {}) {
-    const defaultOptions = {
-        usePascalCase: false,
-        usePNG: false, // Default to JPG
-        size: 'lackey',
-        renderQuality: 2
-    };
-    options = { ...defaultOptions, ...options };
-    
-    const allCards = [...state.cardDatabase];
-    
-    if (allCards.length === 0) {
-        alert("No cards found in the database.");
-        return;
-    }
-    
-    const sizeNames = {
-        'lackey': '750x1050',
-        'lackey-hq': '1125x1575',
-        'digital': '214x308',
-        'highres': '1500x2100'
-    };
-    
-    const sizeDescription = sizeNames[options.size] || options.size;
-    const formatDescription = options.usePNG ? 'PNG' : 'JPG';
-    
-    if (!confirm(`This will download ${allCards.length} individual image files at ${sizeDescription} pixels in ${formatDescription} format. You'll need to approve each download. Continue?`)) {
-        return;
-    }
-    
-    // Card dimensions for export
-    let CARD_WIDTH, CARD_HEIGHT;
-    if (options.size === 'lackey') {
-        CARD_WIDTH = 750;
-        CARD_HEIGHT = 1050;
-    } else if (options.size === 'lackey-hq') {
-        CARD_WIDTH = 1125;
-        CARD_HEIGHT = 1575;
-    } else if (options.size === 'highres') {
-        CARD_WIDTH = 1500;
-        CARD_HEIGHT = 2100;
-    } else {
-        CARD_WIDTH = 214;
-        CARD_HEIGHT = 308;
-    }
-    
-    // Process cards one by one
-    for (let i = 0; i < allCards.length; i++) {
-        const card = allCards[i];
-        
-        try {
-            const result = await processSingleCard(card, document.body, options);
-            
-            // Create download link
-            const fileExtension = options.usePNG ? '.png' : '.jpg';
-            const mimeType = options.usePNG ? 'image/png' : 'image/jpeg';
-            const blob = new Blob([result.arrayBuffer], { type: mimeType });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            
-            // Use selected filename format with card type
-            const fileName = getCleanFileName(card.title, card.card_type, options.usePascalCase) + fileExtension;
-            a.download = fileName;
-            
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            
-            // Clean up URL
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
-            
-            // Delay between downloads
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-        } catch (error) {
-            console.error(`Failed to generate ${card.title}:`, error);
-        }
-    }
-    
-    alert(`Downloaded ${allCards.length} card images (${CARD_WIDTH}x${CARD_HEIGHT}, ${formatDescription})!`);
+    alert("Fallback export not available in simplified version. Use the main export function.");
 }
