@@ -94,13 +94,13 @@ export async function exportAllCardsAsImages() {
     exportModalContent.style.maxHeight = '90vh';
     exportModalContent.style.overflowY = 'auto';
     
-    // Build modal content
+    // Build modal content - PascalCase checked by default
     exportModalContent.innerHTML = `
         <h3 style="margin-top: 0;">Export Options</h3>
         
         <div style="margin-bottom: 20px;">
             <label style="display: block; margin-bottom: 10px; font-weight: bold;">
-                <input type="checkbox" id="exportUsePascalCase" style="margin-right: 8px;">
+                <input type="checkbox" id="exportUsePascalCase" checked style="margin-right: 8px;">
                 Use PascalCase filenames (e.g., "AmazingDisplayOfPower.jpg")
             </label>
             <small style="color: #666; display: block; margin-top: 5px;">
@@ -233,6 +233,7 @@ export async function exportAllCardsAsImages() {
     });
 }
 
+// FIXED VERSION - This should solve the black images issue
 async function processSingleCard(card, tempContainer, options) {
     console.log(`Processing card: ${card.title}`);
     
@@ -255,33 +256,46 @@ async function processSingleCard(card, tempContainer, options) {
     // Generate the card HTML
     const cardHTML = generatePlaytestCardHTML(card, tempContainer, outputWidth, outputHeight);
     
-    // Create a temporary div to hold the card
-    const tempDiv = document.createElement('div');
-    tempDiv.style.position = 'absolute';
-    tempDiv.style.left = '-9999px';
-    tempDiv.style.width = `${outputWidth}px`;
-    tempDiv.style.height = `${outputHeight}px`;
-    tempDiv.style.backgroundColor = 'white';
-    tempDiv.innerHTML = cardHTML;
-    document.body.appendChild(tempDiv);
+    // Create a temporary container for rendering
+    const renderContainer = document.createElement('div');
+    renderContainer.style.position = 'fixed';
+    renderContainer.style.top = '0';
+    renderContainer.style.left = '0';
+    renderContainer.style.width = `${outputWidth}px`;
+    renderContainer.style.height = `${outputHeight}px`;
+    renderContainer.style.backgroundColor = 'white'; // CRITICAL: Set background color
+    renderContainer.style.zIndex = '10000';
+    renderContainer.style.visibility = 'hidden'; // Hide but still renderable
+    renderContainer.innerHTML = cardHTML;
+    document.body.appendChild(renderContainer);
     
     try {
-        // Use html2canvas with proper options
-        const canvas = await html2canvas(tempDiv, {
+        // Use html2canvas with FIXED options
+        const canvas = await html2canvas(renderContainer.firstElementChild, {
             width: outputWidth,
             height: outputHeight,
             scale: 1,
-            backgroundColor: '#ffffff',
-            logging: false,
+            backgroundColor: 'white', // CRITICAL: Set background color
+            logging: true, // Enable logging to see what's happening
             useCORS: true,
             allowTaint: true,
-            removeContainer: true,
-            // Ensure canvas is properly sized
-            windowWidth: outputWidth,
-            windowHeight: outputHeight,
-            // Improve rendering
-            imageTimeout: 0
+            removeContainer: false, // Don't remove container during processing
+            // Force canvas creation with proper settings
+            foreignObjectRendering: false,
+            // Improve text rendering
+            onclone: function(clonedDoc, element) {
+                // Ensure white background on the element itself
+                element.style.backgroundColor = 'white';
+                element.style.color = 'black';
+            }
         });
+        
+        console.log(`Canvas created for ${card.title}: ${canvas.width}x${canvas.height}`);
+        
+        // Check if canvas has content
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, 1, 1).data;
+        console.log(`Pixel color at (0,0): R=${imageData[0]}, G=${imageData[1]}, B=${imageData[2]}, A=${imageData[3]}`);
         
         // Convert to blob
         const blob = await new Promise((resolve) => {
@@ -300,7 +314,7 @@ async function processSingleCard(card, tempContainer, options) {
         const arrayBuffer = await blob.arrayBuffer();
         
         // Clean up
-        document.body.removeChild(tempDiv);
+        document.body.removeChild(renderContainer);
         
         return {
             arrayBuffer,
@@ -309,9 +323,10 @@ async function processSingleCard(card, tempContainer, options) {
         };
         
     } catch (error) {
+        console.error(`Error processing card "${card.title}":`, error);
         // Clean up on error
-        if (tempDiv.parentNode) {
-            document.body.removeChild(tempDiv);
+        if (renderContainer.parentNode) {
+            document.body.removeChild(renderContainer);
         }
         throw error;
     }
