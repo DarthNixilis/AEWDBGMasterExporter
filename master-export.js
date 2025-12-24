@@ -1,4 +1,31 @@
 // master-export.js
+// Add this function at the top of master-export.js
+function loadBetterFonts() {
+    // Create link for Google Fonts
+    const link = document.createElement('link');
+    link.href = 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Montserrat:wght@700;900&family=Oswald:wght@700&display=swap';
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
+    
+    // Add font faces for fallback
+    const style = document.createElement('style');
+    style.textContent = `
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Montserrat:wght@700;900&family=Oswald:wght@700&display=swap');
+        
+        /* Better font stack for cards */
+        :root {
+            --card-font: 'Roboto', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            --card-title-font: 'Montserrat', 'Impact', 'Arial Black', 'Franklin Gothic Heavy', sans-serif;
+            --card-stat-font: 'Oswald', 'Montserrat', 'Impact', sans-serif;
+        }
+    `;
+    document.head.appendChild(style);
+    
+    return new Promise((resolve) => {
+        // Wait a bit for fonts to load
+        setTimeout(resolve, 500);
+    });
+}
 import * as state from './config.js';
 import { generatePlaytestCardHTML } from './card-renderer.js';
 import { toPascalCase } from './config.js';
@@ -974,3 +1001,4 @@ export async function exportAllCardsAsImagesFallback(options = {}) {
     document.body.removeChild(tempContainer);
     alert(`Downloaded ${allCards.length} card images (${CARD_WIDTH}x${CARD_HEIGHT})!`);
 }
+
