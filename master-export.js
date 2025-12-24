@@ -50,7 +50,7 @@ export async function exportAllCardsAsImages() {
         return;
     }
     
-    // Simple modal
+    // Modal with export type options
     const exportModal = document.createElement('div');
     exportModal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9998;display:flex;justify-content:center;align-items:center;';
     
@@ -59,12 +59,14 @@ export async function exportAllCardsAsImages() {
     
     exportModalContent.innerHTML = `
         <h3 style="margin-top:0;">Export Options</h3>
+        
         <div style="margin-bottom:20px;">
             <label style="display:block;margin-bottom:10px;font-weight:bold;">
                 <input type="checkbox" id="exportUsePascalCase" checked style="margin-right:8px;">
                 PascalCase filenames
             </label>
         </div>
+        
         <div style="margin-bottom:20px;">
             <label style="display:block;margin-bottom:10px;font-weight:bold;">
                 <input type="checkbox" id="exportUsePNG" style="margin-right:8px;">
@@ -72,13 +74,25 @@ export async function exportAllCardsAsImages() {
             </label>
             <small style="color:#666;">Unchecked = JPG (recommended)</small>
         </div>
+        
+        <div style="margin-bottom:20px;">
+            <strong style="display:block;margin-bottom:10px;">Export Type:</strong>
+            <select id="exportTypeSelect" style="width:100%;padding:8px;font-size:16px;">
+                <option value="all">All Cards</option>
+                <option value="bytype">By Card Type</option>
+                <option value="singletype">Single Card Type</option>
+            </select>
+        </div>
+        
         <div style="margin-bottom:20px;">
             <strong style="display:block;margin-bottom:10px;">Card Size:</strong>
             <select id="exportSizeSelect" style="width:100%;padding:8px;font-size:16px;">
                 <option value="lackey">LackeyCCG (750x1050)</option>
                 <option value="digital">Digital (214x308)</option>
+                <option value="highres">High Res (1500x2100)</option>
             </select>
         </div>
+        
         <div style="display:flex;justify-content:space-between;margin-top:25px;">
             <button id="exportCancelBtn" style="padding:10px 20px;background:#6c757d;color:white;border:none;border-radius:4px;cursor:pointer;">
                 Cancel
@@ -101,21 +115,31 @@ export async function exportAllCardsAsImages() {
         document.getElementById('exportConfirmBtn').onclick = async () => {
             const usePascalCase = document.getElementById('exportUsePascalCase').checked;
             const usePNG = document.getElementById('exportUsePNG').checked;
+            const exportType = document.getElementById('exportTypeSelect').value;
             const exportSize = document.getElementById('exportSizeSelect').value;
             
             document.body.removeChild(exportModal);
             
-            await exportCardsDirectly(allCards, {
+            const exportOptions = {
                 usePascalCase,
                 usePNG,
                 size: exportSize
-            });
+            };
+            
+            if (exportType === 'all') {
+                await exportSingleZip(allCards, 'AEW-Complete-Set.zip', exportOptions);
+            } else if (exportType === 'bytype') {
+                await exportByCategorySeparate(allCards, exportOptions);
+            } else if (exportType === 'singletype') {
+                await exportByCategorySingle(allCards, exportOptions);
+            }
+            
             resolve();
         };
     });
 }
 
-// CANVAS-BASED RENDERER - This should definitely work
+// CANVAS-BASED RENDERER
 function renderCardToCanvas(card, width, height) {
     const canvas = document.createElement('canvas');
     canvas.width = width;
@@ -139,7 +163,22 @@ function renderCardToCanvas(card, width, height) {
     ctx.fillStyle = 'black';
     ctx.font = `bold ${fontSize(24)}px Arial`;
     ctx.textAlign = 'center';
-    ctx.fillText(card.title, width / 2, 40 * scale);
+    
+    // Truncate long titles
+    let title = card.title;
+    let titleWidth = ctx.measureText(title).width;
+    const maxTitleWidth = width - 40 * scale;
+    
+    if (titleWidth > maxTitleWidth) {
+        // Try to shorten title
+        while (title.length > 20 && titleWidth > maxTitleWidth) {
+            title = title.substring(0, title.length - 1);
+            titleWidth = ctx.measureText(title + '...').width;
+        }
+        title = title + '...';
+    }
+    
+    ctx.fillText(title, width / 2, 40 * scale);
     
     // Draw stats
     ctx.font = `bold ${fontSize(18)}px Arial`;
@@ -155,6 +194,13 @@ function renderCardToCanvas(card, width, height) {
         ctx.fillText(`M: ${card.momentum}`, 20 * scale, 110 * scale);
     }
     
+    // Target
+    const targetTrait = card.text_box?.traits?.find(t => t.name.trim() === 'Target');
+    const targetValue = targetTrait ? targetTrait.value : null;
+    if (targetValue) {
+        ctx.fillText(`T: ${targetValue}`, 20 * scale, 140 * scale);
+    }
+    
     // Cost
     ctx.textAlign = 'right';
     if (card.cost !== null && card.cost !== undefined) {
@@ -164,17 +210,17 @@ function renderCardToCanvas(card, width, height) {
     // Draw type
     ctx.textAlign = 'center';
     ctx.fillStyle = getTypeColor(card.card_type);
-    ctx.fillRect(20 * scale, 130 * scale, width - 40 * scale, 30 * scale);
+    ctx.fillRect(20 * scale, 150 * scale, width - 40 * scale, 30 * scale);
     ctx.fillStyle = 'white';
     ctx.font = `bold ${fontSize(16)}px Arial`;
-    ctx.fillText(card.card_type, width / 2, 150 * scale);
+    ctx.fillText(card.card_type, width / 2, 170 * scale);
     
     // Draw text box background
     ctx.fillStyle = '#f8f8f8';
-    ctx.fillRect(20 * scale, 180 * scale, width - 40 * scale, height - 220 * scale);
+    ctx.fillRect(20 * scale, 190 * scale, width - 40 * scale, height - 230 * scale);
     ctx.strokeStyle = '#ccc';
     ctx.lineWidth = 1 * scale;
-    ctx.strokeRect(20 * scale, 180 * scale, width - 40 * scale, height - 220 * scale);
+    ctx.strokeRect(20 * scale, 190 * scale, width - 40 * scale, height - 230 * scale);
     
     // Draw card text
     ctx.fillStyle = 'black';
@@ -184,7 +230,7 @@ function renderCardToCanvas(card, width, height) {
     const text = card.text_box?.raw_text || '';
     const lines = wrapText(ctx, text, width - 60 * scale, fontSize(14));
     
-    let y = 200 * scale;
+    let y = 210 * scale;
     const lineHeight = fontSize(18);
     
     for (const line of lines) {
@@ -192,6 +238,10 @@ function renderCardToCanvas(card, width, height) {
             ctx.fillText(line, 30 * scale, y);
             y += lineHeight;
         } else {
+            // Draw "..." if text is truncated
+            if (lines.indexOf(line) < lines.length - 1) {
+                ctx.fillText('...', 30 * scale, y);
+            }
             break;
         }
     }
@@ -207,22 +257,28 @@ function getTypeColor(type) {
         'Strike': '#4c82c8',
         'Grapple': '#e68a00',
         'Wrestler': '#333333',
-        'Manager': '#666666'
+        'Manager': '#666666',
+        'Boon': '#17a2b8',
+        'Injury': '#6c757d',
+        'Call Name': '#fd7e14',
+        'Faction': '#20c997'
     };
     return colors[type] || '#6c757d';
 }
 
 function wrapText(ctx, text, maxWidth, fontSize) {
+    if (!text) return [];
+    
     const words = text.split(' ');
     const lines = [];
-    let currentLine = words[0];
+    let currentLine = words[0] || '';
     
     for (let i = 1; i < words.length; i++) {
         const word = words[i];
         const testLine = currentLine + ' ' + word;
         const metrics = ctx.measureText(testLine);
         
-        if (metrics.width > maxWidth) {
+        if (metrics.width > maxWidth && currentLine !== '') {
             lines.push(currentLine);
             currentLine = word;
         } else {
@@ -230,17 +286,23 @@ function wrapText(ctx, text, maxWidth, fontSize) {
         }
     }
     
-    lines.push(currentLine);
+    if (currentLine) {
+        lines.push(currentLine);
+    }
+    
     return lines;
 }
 
-async function exportCardsDirectly(cards, options) {
+async function exportSingleZip(cards, zipName, options) {
     const { usePascalCase, usePNG, size } = options;
     
     let width, height;
     if (size === 'lackey') {
         width = 750;
         height = 1050;
+    } else if (size === 'highres') {
+        width = 1500;
+        height = 2100;
     } else {
         width = 214;
         height = 308;
@@ -330,7 +392,7 @@ async function exportCardsDirectly(cards, options) {
     const url = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `AEW-Cards-${width}x${height}.zip`;
+    a.download = zipName;
     
     document.body.appendChild(a);
     a.click();
@@ -341,6 +403,124 @@ async function exportCardsDirectly(cards, options) {
     setTimeout(() => URL.revokeObjectURL(url), 10000);
     
     alert(`Exported ${processed} cards successfully!${failed > 0 ? ` (${failed} failed)` : ''}`);
+}
+
+// Group cards by type
+function groupCardsByType(cards) {
+    const groups = {
+        Wrestler: [],
+        Manager: [],
+        Action: [],
+        Grapple: [],
+        Strike: [],
+        Submission: [],
+        Response: [],
+        Boon: [],
+        Injury: [],
+        'Call Name': [],
+        Faction: []
+    };
+    
+    cards.forEach(card => {
+        if (groups[card.card_type]) {
+            groups[card.card_type].push(card);
+        } else {
+            // For any unexpected types, add to a catch-all category
+            if (!groups['Other']) groups['Other'] = [];
+            groups['Other'].push(card);
+        }
+    });
+    
+    // Remove empty groups
+    Object.keys(groups).forEach(key => {
+        if (groups[key].length === 0) {
+            delete groups[key];
+        }
+    });
+    
+    return groups;
+}
+
+// Export separate ZIPs for each card type
+async function exportByCategorySeparate(allCards, options) {
+    const groups = groupCardsByType(allCards);
+    const types = Object.keys(groups);
+    
+    if (types.length === 0) {
+        alert('No cards found to export.');
+        return;
+    }
+    
+    let totalCards = 0;
+    types.forEach(type => totalCards += groups[type].length);
+    
+    if (!confirm(`This will create ${types.length} separate ZIP files with ${totalCards} total cards. Continue?`)) {
+        return;
+    }
+    
+    for (const type of types) {
+        const cards = groups[type];
+        if (cards.length > 0) {
+            const proceed = confirm(`Export ${type} cards (${cards.length} cards)?`);
+            if (proceed) {
+                const zipName = options.usePascalCase 
+                    ? `AEW${type.replace(/\s+/g, '')}Cards.zip` 
+                    : `AEW ${type} Cards.zip`;
+                await exportSingleZip(cards, zipName, options);
+                // Delay between downloads
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+    }
+    
+    alert('All category exports completed!');
+}
+
+// Export a single selected card type
+async function exportByCategorySingle(allCards, options) {
+    const groups = groupCardsByType(allCards);
+    const types = Object.keys(groups);
+    
+    if (types.length === 0) {
+        alert('No cards found to export.');
+        return;
+    }
+    
+    // Build type selection list
+    let typeList = 'Select card type to export:\n\n';
+    types.forEach((type, index) => {
+        typeList += `${index + 1}. ${type} (${groups[type].length} cards)\n`;
+    });
+    
+    const selected = prompt(typeList + '\nEnter number or type name:');
+    
+    if (!selected) return;
+    
+    // Try to parse as number first
+    let selectedType;
+    const selectedNum = parseInt(selected);
+    
+    if (!isNaN(selectedNum) && selectedNum >= 1 && selectedNum <= types.length) {
+        selectedType = types[selectedNum - 1];
+    } else {
+        // Try to match by name
+        selectedType = types.find(type => 
+            type.toLowerCase() === selected.toLowerCase() ||
+            type.toLowerCase().includes(selected.toLowerCase())
+        );
+    }
+    
+    if (!selectedType || !groups[selectedType]) {
+        alert(`Type "${selected}" not found. Available types: ${types.join(', ')}`);
+        return;
+    }
+    
+    const cards = groups[selectedType];
+    const zipName = options.usePascalCase 
+        ? `AEW${selectedType.replace(/\s+/g, '')}Cards.zip` 
+        : `AEW ${selectedType} Cards.zip`;
+    
+    await exportSingleZip(cards, zipName, options);
 }
 
 // Fallback export
