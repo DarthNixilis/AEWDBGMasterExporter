@@ -1,31 +1,4 @@
 // master-export.js
-// Add this function at the top of master-export.js
-function loadBetterFonts() {
-    // Create link for Google Fonts
-    const link = document.createElement('link');
-    link.href = 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Montserrat:wght@700;900&family=Oswald:wght@700&display=swap';
-    link.rel = 'stylesheet';
-    document.head.appendChild(link);
-    
-    // Add font faces for fallback
-    const style = document.createElement('style');
-    style.textContent = `
-        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Montserrat:wght@700;900&family=Oswald:wght@700&display=swap');
-        
-        /* Better font stack for cards */
-        :root {
-            --card-font: 'Roboto', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-            --card-title-font: 'Montserrat', 'Impact', 'Arial Black', 'Franklin Gothic Heavy', sans-serif;
-            --card-stat-font: 'Oswald', 'Montserrat', 'Impact', sans-serif;
-        }
-    `;
-    document.head.appendChild(style);
-    
-    return new Promise((resolve) => {
-        // Wait a bit for fonts to load
-        setTimeout(resolve, 500);
-    });
-}
 import * as state from './config.js';
 import { generatePlaytestCardHTML } from './card-renderer.js';
 import { toPascalCase } from './config.js';
@@ -183,13 +156,13 @@ export async function exportAllCardsAsImages() {
         <div style="margin-bottom: 20px;">
             <strong style="display: block; margin-bottom: 10px;">Render Quality:</strong>
             <select id="renderQuality" style="width: 100%; padding: 8px; font-size: 16px;">
-                <option value="2">High Quality (Render at 2x then scale down)</option>
-                <option value="3">Ultra Quality (Render at 3x then scale down)</option>
-                <option value="4">Maximum Quality (Render at 4x then scale down)</option>
+                <option value="1">Standard Quality</option>
+                <option value="2" selected>High Quality</option>
+                <option value="3">Ultra Quality</option>
             </select>
             <small style="color: #666; display: block; margin-top: 5px;">
-                Higher quality = much better text readability but 4x longer processing time<br>
-                <strong>Recommended:</strong> Ultra Quality (3x) for best results
+                Higher quality = better text readability but longer processing time<br>
+                <strong>Recommended:</strong> High Quality (2x) for best results
             </small>
         </div>
         
@@ -260,11 +233,95 @@ export async function exportAllCardsAsImages() {
     });
 }
 
+async function processSingleCard(card, tempContainer, options) {
+    console.log(`Processing card: ${card.title}`);
+    
+    // Determine output dimensions
+    let outputWidth, outputHeight;
+    if (options.size === 'lackey') {
+        outputWidth = 750;   // Native LackeyCCG size
+        outputHeight = 1050; // Native LackeyCCG size
+    } else if (options.size === 'lackey-hq') {
+        outputWidth = 1125;   // 1.5x for extra quality
+        outputHeight = 1575;  // 1.5x for extra quality
+    } else if (options.size === 'highres') {
+        outputWidth = 1500;   // 2x for printing
+        outputHeight = 2100;  // 2x for printing
+    } else { // digital
+        outputWidth = 214;
+        outputHeight = 308;
+    }
+    
+    // Generate the card HTML
+    const cardHTML = generatePlaytestCardHTML(card, tempContainer, outputWidth, outputHeight);
+    
+    // Create a temporary div to hold the card
+    const tempDiv = document.createElement('div');
+    tempDiv.style.position = 'absolute';
+    tempDiv.style.left = '-9999px';
+    tempDiv.style.width = `${outputWidth}px`;
+    tempDiv.style.height = `${outputHeight}px`;
+    tempDiv.style.backgroundColor = 'white';
+    tempDiv.innerHTML = cardHTML;
+    document.body.appendChild(tempDiv);
+    
+    try {
+        // Use html2canvas with proper options
+        const canvas = await html2canvas(tempDiv, {
+            width: outputWidth,
+            height: outputHeight,
+            scale: 1,
+            backgroundColor: '#ffffff',
+            logging: false,
+            useCORS: true,
+            allowTaint: true,
+            removeContainer: true,
+            // Ensure canvas is properly sized
+            windowWidth: outputWidth,
+            windowHeight: outputHeight,
+            // Improve rendering
+            imageTimeout: 0
+        });
+        
+        // Convert to blob
+        const blob = await new Promise((resolve) => {
+            if (options.size === 'lackey' || options.size === 'lackey-hq' || options.size === 'highres') {
+                canvas.toBlob(resolve, 'image/png', 1.0);
+            } else {
+                canvas.toBlob(resolve, 'image/jpeg', 0.95);
+            }
+        });
+        
+        if (!blob) {
+            throw new Error('Failed to create image blob');
+        }
+        
+        // Convert blob to array buffer for ZIP
+        const arrayBuffer = await blob.arrayBuffer();
+        
+        // Clean up
+        document.body.removeChild(tempDiv);
+        
+        return {
+            arrayBuffer,
+            width: outputWidth,
+            height: outputHeight
+        };
+        
+    } catch (error) {
+        // Clean up on error
+        if (tempDiv.parentNode) {
+            document.body.removeChild(tempDiv);
+        }
+        throw error;
+    }
+}
+
 async function exportSingleZip(cards, zipName, options = {}) {
     const defaultOptions = {
         usePascalCase: false,
         size: 'lackey',
-        renderQuality: 3,
+        renderQuality: 2,
         includeCutGuides: false,
         includeBleed: false,
         includeBacks: false
@@ -286,16 +343,6 @@ async function exportSingleZip(cards, zipName, options = {}) {
     
     // Load JSZip
     const JSZip = await loadJSZip();
-    
-    // Create a temporary container for rendering - scaled for ultra quality
-    const tempContainer = document.createElement('div');
-    const baseRenderScale = 750; // Base width for rendering
-    const renderScale = baseRenderScale * options.renderQuality;
-    tempContainer.style.position = 'absolute';
-    tempContainer.style.left = '-9999px';
-    tempContainer.style.width = `${renderScale}px`;
-    tempContainer.style.height = `${renderScale * 1.4}px`; // 1050/750 = 1.4 aspect ratio
-    document.body.appendChild(tempContainer);
     
     try {
         // Create progress indicator
@@ -335,7 +382,7 @@ async function exportSingleZip(cards, zipName, options = {}) {
                 </div>
                 <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
                     Please wait, this may take several minutes...
-                    <br><small>Rendering at ${options.renderQuality}x quality (${renderScale}x${Math.round(renderScale * 1.4)}px)</small>
+                    <br><small>Rendering at ${options.size} (${sizeDescription})</small>
                 </p>
                 <button id="cancelExport" style="margin-top: 15px; padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">
                     Cancel
@@ -347,7 +394,6 @@ async function exportSingleZip(cards, zipName, options = {}) {
             if (cancelBtn) {
                 cancelBtn.onclick = () => {
                     document.body.removeChild(progressDiv);
-                    document.body.removeChild(tempContainer);
                     throw new Error('Export cancelled by user');
                 };
             }
@@ -357,10 +403,10 @@ async function exportSingleZip(cards, zipName, options = {}) {
         
         // Process based on size option
         if (options.size === 'printsingle') {
-            await exportPrintSheetsSingle(zip, cards, tempContainer, options, updateProgress);
+            await exportPrintSheetsSingle(zip, cards, options, updateProgress);
             completed = cards.length;
         } else if (options.size === 'printmulti') {
-            await exportPrintSheetsMulti(zip, cards, tempContainer, options, updateProgress);
+            await exportPrintSheetsMulti(zip, cards, options, updateProgress);
             completed = cards.length;
         } else {
             // Process individual cards
@@ -368,13 +414,14 @@ async function exportSingleZip(cards, zipName, options = {}) {
                 const card = cards[i];
                 
                 try {
-                    console.log(`Processing card ${i + 1}: ${card.title} at ${options.renderQuality}x quality`);
+                    console.log(`Processing card ${i + 1}: ${card.title}`);
                     
-                    const result = await processSingleCard(card, tempContainer, options);
+                    const result = await processSingleCard(card, document.body, options);
                     
                     if (result) {
                         // Use the updated getCleanFileName function with card type
-                        const fileName = getCleanFileName(card.title, card.card_type, options.usePascalCase) + '.jpg';
+                        const fileName = getCleanFileName(card.title, card.card_type, options.usePascalCase) + 
+                            ((options.size === 'lackey' || options.size === 'lackey-hq' || options.size === 'highres') ? '.png' : '.jpg');
                         zip.file(fileName, result.arrayBuffer);
                         console.log(`Added ${fileName} to ZIP (${result.width}x${result.height})`);
                         completed++;
@@ -386,7 +433,7 @@ async function exportSingleZip(cards, zipName, options = {}) {
                 }
                 
                 updateProgress();
-                await new Promise(resolve => setTimeout(resolve, 200)); // Longer delay for high quality
+                await new Promise(resolve => setTimeout(resolve, 100)); // Small delay between cards
             }
         }
         
@@ -432,7 +479,6 @@ async function exportSingleZip(cards, zipName, options = {}) {
         
         // Clean up
         document.body.removeChild(progressDiv);
-        document.body.removeChild(tempContainer);
         document.head.removeChild(style);
         
         // Trigger download
@@ -468,9 +514,6 @@ async function exportSingleZip(cards, zipName, options = {}) {
         if (progressDiv && progressDiv.parentNode) {
             document.body.removeChild(progressDiv);
         }
-        if (tempContainer.parentNode) {
-            document.body.removeChild(tempContainer);
-        }
         
         if (error.message !== 'Export cancelled by user') {
             alert(`Error: ${error.message}\n\nCheck console for details.`);
@@ -478,235 +521,7 @@ async function exportSingleZip(cards, zipName, options = {}) {
     }
 }
 
-async function processSingleCard(card, tempContainer, options) {
-    // Determine output dimensions
-    let outputWidth, outputHeight;
-    if (options.size === 'lackey') {
-        outputWidth = 750;   // Native LackeyCCG size
-        outputHeight = 1050; // Native LackeyCCG size
-    } else if (options.size === 'lackey-hq') {
-        outputWidth = 1125;   // 1.5x for extra quality
-        outputHeight = 1575;  // 1.5x for extra quality
-    } else if (options.size === 'highres') {
-        outputWidth = 1500;   // 2x for printing
-        outputHeight = 2100;  // 2x for printing
-    } else { // digital
-        outputWidth = 214;
-        outputHeight = 308;
-    }
-    
-    // Render scale - minimum 2x for any size, higher for quality options
-    let renderScale = Math.max(options.renderQuality, 2);
-    
-    // For high quality outputs, increase render scale
-    if (options.size === 'lackey-hq' || options.size === 'highres') {
-        renderScale = Math.max(renderScale, 3);
-    }
-    
-    const renderWidth = 750 * renderScale;
-    const renderHeight = 1050 * renderScale;
-    
-    console.log(`Rendering ${card.title} at ${renderWidth}x${renderHeight} (${renderScale}x), scaling to ${outputWidth}x${outputHeight}`);
-    
-    // Generate the card HTML at ultra high resolution
-    const cardHTML = await generatePlaytestCardHTML(card, tempContainer);
-    tempContainer.innerHTML = cardHTML;
-    const cardElement = tempContainer.firstElementChild;
-    
-    if (!cardElement) {
-        throw new Error('Failed to create card element');
-    }
-    
-    // Create canvas for final output
-    const finalCanvas = document.createElement('canvas');
-    finalCanvas.width = outputWidth;
-    finalCanvas.height = outputHeight;
-    const finalCtx = finalCanvas.getContext('2d');
-    
-    // Set white background with anti-aliasing
-    finalCtx.fillStyle = 'white';
-    finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-    
-    // Create a temporary canvas at ultra high resolution
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = renderWidth;
-    tempCanvas.height = renderHeight;
-    
-    // Configure html2canvas for ultra high quality rendering
-    const html2canvasOptions = {
-        canvas: tempCanvas,
-        width: renderWidth,
-        height: renderHeight,
-        scale: 1,
-        backgroundColor: null,
-        logging: false,
-        useCORS: true,
-        allowTaint: true,
-        // Maximum quality settings
-        imageTimeout: 0,
-        removeContainer: true,
-        // Anti-aliasing and quality
-        onclone: (clonedDoc) => {
-            // Ultra quality text rendering
-            const style = clonedDoc.createElement('style');
-            style.textContent = `
-                * {
-                    text-rendering: geometricPrecision !important;
-                    -webkit-font-smoothing: subpixel-antialiased !important;
-                    -moz-osx-font-smoothing: grayscale !important;
-                    font-smooth: always !important;
-                }
-                div, span, p {
-                    font-weight: bold !important;
-                    letter-spacing: 0.5px !important;
-                }
-            `;
-            clonedDoc.head.appendChild(style);
-            
-            // Increase font sizes for ultra quality
-            const allElements = clonedDoc.querySelectorAll('*');
-            allElements.forEach(el => {
-                const style = window.getComputedStyle(el);
-                const fontSize = parseFloat(style.fontSize);
-                if (fontSize && fontSize < 100) {
-                    el.style.fontSize = `${fontSize * 1.1}px`;
-                }
-            });
-        }
-    };
-    
-    // Render card to temporary canvas at ultra high resolution
-    console.time(`Render ${card.title}`);
-    await html2canvas(cardElement, html2canvasOptions);
-    console.timeEnd(`Render ${card.title}`);
-    
-    // Ultra high-quality scaling using image smoothing
-    finalCtx.imageSmoothingEnabled = true;
-    finalCtx.imageSmoothingQuality = 'high';
-    finalCtx.textRendering = 'geometricPrecision';
-    
-    // Use a high-quality image library if available, otherwise use canvas
-    if (window.pica || window.awesome) {
-        // If we had a resizing library, we'd use it here
-        finalCtx.drawImage(
-            tempCanvas, 
-            0, 0, tempCanvas.width, tempCanvas.height,
-            0, 0, outputWidth, outputHeight
-        );
-    } else {
-        // Step down scaling for better quality (if scaling down a lot)
-        if (renderScale >= 4) {
-            // Create intermediate canvas for step-down scaling
-            const intermediateCanvas = document.createElement('canvas');
-            intermediateCanvas.width = outputWidth * 2;
-            intermediateCanvas.height = outputHeight * 2;
-            const intermediateCtx = intermediateCanvas.getContext('2d');
-            intermediateCtx.imageSmoothingEnabled = true;
-            intermediateCtx.imageSmoothingQuality = 'high';
-            
-            // First scale down to 2x final size
-            intermediateCtx.drawImage(
-                tempCanvas, 
-                0, 0, tempCanvas.width, tempCanvas.height,
-                0, 0, intermediateCanvas.width, intermediateCanvas.height
-            );
-            
-            // Then scale down to final size
-            finalCtx.drawImage(
-                intermediateCanvas,
-                0, 0, intermediateCanvas.width, intermediateCanvas.height,
-                0, 0, outputWidth, outputHeight
-            );
-        } else {
-            // Direct scaling for smaller scale factors
-            finalCtx.drawImage(
-                tempCanvas, 
-                0, 0, tempCanvas.width, tempCanvas.height,
-                0, 0, outputWidth, outputHeight
-            );
-        }
-    }
-    
-    // Apply a sharpen filter for extra clarity (especially for LackeyCCG)
-    if (options.size === 'lackey' || options.size === 'lackey-hq') {
-        try {
-            const imageData = finalCtx.getImageData(0, 0, outputWidth, outputHeight);
-            sharpenFilterUltra(imageData, 0.7);
-            finalCtx.putImageData(imageData, 0, 0);
-        } catch (e) {
-            console.warn('Could not apply sharpen filter:', e);
-        }
-    }
-    
-    // Convert to blob with maximum quality
-    const blob = await new Promise(resolve => {
-        // Use PNG for highest quality, or high-quality JPEG
-        if (options.size === 'lackey' || options.size === 'lackey-hq' || options.size === 'highres') {
-            finalCanvas.toBlob(resolve, 'image/png');
-        } else {
-            finalCanvas.toBlob(resolve, 'image/jpeg', 0.98);
-        }
-    });
-    
-    if (!blob) {
-        throw new Error('Failed to create image blob');
-    }
-    
-    // Convert blob to array buffer for ZIP
-    const arrayBuffer = await blob.arrayBuffer();
-    
-    return {
-        arrayBuffer,
-        width: outputWidth,
-        height: outputHeight
-    };
-}
-
-// Ultra quality sharpen filter for maximum text clarity
-function sharpenFilterUltra(imageData, strength = 0.7) {
-    const width = imageData.width;
-    const height = imageData.height;
-    const data = imageData.data;
-    const tempData = new Uint8ClampedArray(data);
-    
-    // Strong sharpen kernel
-    const kernel = [
-        -0.5, -1, -0.5,
-        -1,   7, -1,
-        -0.5, -1, -0.5
-    ];
-    
-    // Apply kernel to each pixel
-    for (let y = 1; y < height - 1; y++) {
-        for (let x = 1; x < width - 1; x++) {
-            for (let c = 0; c < 3; c++) { // RGB channels only
-                let sum = 0;
-                let kIndex = 0;
-                
-                for (let ky = -1; ky <= 1; ky++) {
-                    for (let kx = -1; kx <= 1; kx++) {
-                        const pixelIndex = ((y + ky) * width + (x + kx)) * 4 + c;
-                        sum += tempData[pixelIndex] * kernel[kIndex];
-                        kIndex++;
-                    }
-                }
-                
-                const pixelIndex = (y * width + x) * 4 + c;
-                const original = tempData[pixelIndex];
-                const sharpened = original + (sum - original * 5) * strength;
-                data[pixelIndex] = Math.max(0, Math.min(255, sharpened));
-            }
-            // Keep alpha channel unchanged
-            const alphaIndex = (y * width + x) * 4 + 3;
-            data[alphaIndex] = tempData[alphaIndex];
-        }
-    }
-    
-    return imageData;
-}
-
-async function exportPrintSheetsSingle(zip, cards, tempContainer, options, updateProgress) {
-    // Similar to before but using the new processSingleCard
+async function exportPrintSheetsSingle(zip, cards, options, updateProgress) {
     const CARDS_PER_PAGE = 1;
     const BLEED_MM = options.includeBleed ? 3 : 0;
     const CUT_GUIDE_WIDTH = 2;
@@ -747,7 +562,7 @@ async function exportPrintSheetsSingle(zip, cards, tempContainer, options, updat
             
             try {
                 // Generate card at high resolution
-                const result = await processSingleCard(card, tempContainer, { ...options, size: 'highres' });
+                const result = await processSingleCard(card, document.body, { ...options, size: 'highres' });
                 
                 // Create temporary canvas for the card
                 const cardCanvas = document.createElement('canvas');
@@ -769,7 +584,7 @@ async function exportPrintSheetsSingle(zip, cards, tempContainer, options, updat
                     img.src = url;
                 });
                 
-                // Enable ultra high-quality scaling
+                // Enable high-quality scaling
                 ctx.imageSmoothingEnabled = true;
                 ctx.imageSmoothingQuality = 'high';
                 
@@ -821,9 +636,127 @@ async function exportPrintSheetsSingle(zip, cards, tempContainer, options, updat
     }
 }
 
-async function exportPrintSheetsMulti(zip, cards, tempContainer, options, updateProgress) {
-    // Implementation similar to before but with the new processSingleCard
-    // ... (keeping the existing print multi-sheet implementation)
+async function exportPrintSheetsMulti(zip, cards, options, updateProgress) {
+    // Implementation similar to exportPrintSheetsSingle but with 9 cards per page
+    const CARDS_PER_PAGE = 9;
+    const BLEED_MM = options.includeBleed ? 3 : 0;
+    const CUT_GUIDE_WIDTH = 2;
+    
+    // A4 paper size at 300 DPI
+    const DPI = 300;
+    const PAPER_WIDTH_MM = 210;
+    const PAPER_HEIGHT_MM = 297;
+    const PAPER_WIDTH_PX = Math.round(PAPER_WIDTH_MM * DPI / 25.4);
+    const PAPER_HEIGHT_PX = Math.round(PAPER_HEIGHT_MM * DPI / 25.4);
+    
+    // Standard card size in mm (63x88)
+    const CARD_WIDTH_MM = 63;
+    const CARD_HEIGHT_MM = 88;
+    const CARD_WIDTH_PX = Math.round((CARD_WIDTH_MM + BLEED_MM * 2) * DPI / 25.4);
+    const CARD_HEIGHT_PX = Math.round((CARD_HEIGHT_MM + BLEED_MM * 2) * DPI / 25.4);
+    
+    // 3x3 grid layout
+    const GRID_COLS = 3;
+    const GRID_ROWS = 3;
+    const HORIZONTAL_GAP = Math.round((PAPER_WIDTH_PX - (CARD_WIDTH_PX * GRID_COLS)) / (GRID_COLS + 1));
+    const VERTICAL_GAP = Math.round((PAPER_HEIGHT_PX - (CARD_HEIGHT_PX * GRID_ROWS)) / (GRID_ROWS + 1));
+    
+    for (let page = 0; page < Math.ceil(cards.length / CARDS_PER_PAGE); page++) {
+        const startIndex = page * CARDS_PER_PAGE;
+        const endIndex = Math.min(startIndex + CARDS_PER_PAGE, cards.length);
+        const cardsOnThisPage = cards.slice(startIndex, endIndex);
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = PAPER_WIDTH_PX;
+        canvas.height = PAPER_HEIGHT_PX;
+        const ctx = canvas.getContext('2d');
+        
+        // White background
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        for (let i = 0; i < cardsOnThisPage.length; i++) {
+            const card = cardsOnThisPage[i];
+            
+            try {
+                // Generate card at high resolution
+                const result = await processSingleCard(card, document.body, { ...options, size: 'highres' });
+                
+                // Create temporary canvas for the card
+                const cardCanvas = document.createElement('canvas');
+                cardCanvas.width = result.width;
+                cardCanvas.height = result.height;
+                const cardCtx = cardCanvas.getContext('2d');
+                
+                // Draw the card image
+                const img = new Image();
+                const blob = new Blob([result.arrayBuffer], { type: 'image/png' });
+                const url = URL.createObjectURL(blob);
+                
+                await new Promise((resolve) => {
+                    img.onload = () => {
+                        cardCtx.drawImage(img, 0, 0);
+                        URL.revokeObjectURL(url);
+                        resolve();
+                    };
+                    img.src = url;
+                });
+                
+                // Calculate position in grid
+                const row = Math.floor(i / GRID_COLS);
+                const col = i % GRID_COLS;
+                const x = HORIZONTAL_GAP + col * (CARD_WIDTH_PX + HORIZONTAL_GAP);
+                const y = VERTICAL_GAP + row * (CARD_HEIGHT_PX + VERTICAL_GAP);
+                
+                // Enable high-quality scaling
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                
+                // Draw card onto sheet
+                ctx.drawImage(cardCanvas, x, y, CARD_WIDTH_PX, CARD_HEIGHT_PX);
+                
+                // Add cut guides if requested
+                if (options.includeCutGuides) {
+                    ctx.strokeStyle = '#0000FF';
+                    ctx.setLineDash([5, 5]);
+                    ctx.lineWidth = CUT_GUIDE_WIDTH;
+                    
+                    // Outer cut line (with bleed)
+                    ctx.strokeRect(
+                        x - BLEED_MM * DPI / 25.4,
+                        y - BLEED_MM * DPI / 25.4,
+                        CARD_WIDTH_PX + BLEED_MM * 2 * DPI / 25.4,
+                        CARD_HEIGHT_PX + BLEED_MM * 2 * DPI / 25.4
+                    );
+                    
+                    // Inner safe area (without bleed)
+                    ctx.strokeStyle = '#FF0000';
+                    ctx.strokeRect(x, y, CARD_WIDTH_PX, CARD_HEIGHT_PX);
+                    
+                    ctx.setLineDash([]);
+                }
+                
+                updateProgress();
+                
+            } catch (error) {
+                console.error(`Error rendering card "${card.title}":`, error);
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        
+        // Convert canvas to blob
+        const blob = await new Promise(resolve => {
+            canvas.toBlob(resolve, 'image/jpeg', 0.95);
+        });
+        
+        if (blob) {
+            const arrayBuffer = await blob.arrayBuffer();
+            const pageNum = page + 1;
+            const fileName = `Print Sheet ${pageNum}.jpg`;
+            zip.file(fileName, arrayBuffer);
+        }
+    }
 }
 
 async function exportByCategorySeparate(allCards, options = {}) {
@@ -912,7 +845,7 @@ export async function exportAllCardsAsImagesFallback(options = {}) {
     const defaultOptions = {
         usePascalCase: false,
         size: 'lackey',
-        renderQuality: 3
+        renderQuality: 2
     };
     options = { ...defaultOptions, ...options };
     
@@ -936,15 +869,6 @@ export async function exportAllCardsAsImagesFallback(options = {}) {
         return;
     }
     
-    // Create a temporary container
-    const tempContainer = document.createElement('div');
-    const renderScale = 750 * options.renderQuality;
-    tempContainer.style.position = 'absolute';
-    tempContainer.style.left = '-9999px';
-    tempContainer.style.width = `${renderScale}px`;
-    tempContainer.style.height = `${renderScale * 1.4}px`;
-    document.body.appendChild(tempContainer);
-    
     // Card dimensions for export
     let CARD_WIDTH, CARD_HEIGHT;
     if (options.size === 'lackey') {
@@ -966,7 +890,7 @@ export async function exportAllCardsAsImagesFallback(options = {}) {
         const card = allCards[i];
         
         try {
-            const result = await processSingleCard(card, tempContainer, options);
+            const result = await processSingleCard(card, document.body, options);
             
             // Create download link
             const blob = new Blob([result.arrayBuffer], { 
@@ -990,15 +914,13 @@ export async function exportAllCardsAsImagesFallback(options = {}) {
             // Clean up URL
             setTimeout(() => URL.revokeObjectURL(url), 1000);
             
-            // Longer delay for high quality
-            await new Promise(resolve => setTimeout(resolve, 800));
+            // Delay between downloads
+            await new Promise(resolve => setTimeout(resolve, 500));
             
         } catch (error) {
             console.error(`Failed to generate ${card.title}:`, error);
         }
     }
     
-    document.body.removeChild(tempContainer);
     alert(`Downloaded ${allCards.length} card images (${CARD_WIDTH}x${CARD_HEIGHT})!`);
 }
-
