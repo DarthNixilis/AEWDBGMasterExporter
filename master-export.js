@@ -1,7 +1,19 @@
 // master-export.js
 import * as state from './config.js';
 import { generatePlaytestCardHTML } from './card-renderer.js';
-import { toPascalCase } from './config.js';
+
+// Helper function to create clean filename with Regular Case
+function getCleanFileName(cardTitle) {
+    // Remove special characters but keep spaces
+    const cleanTitle = cardTitle.replace(/[^a-zA-Z0-9\s]/g, '');
+    
+    // Convert to title case (capitalize first letter of each word)
+    return cleanTitle
+        .toLowerCase()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+}
 
 // Load JSZip dynamically
 async function loadJSZip() {
@@ -194,9 +206,8 @@ async function exportSingleZip(cards, zipName) {
                 // Convert blob to array buffer for ZIP
                 const arrayBuffer = await blob.arrayBuffer();
                 
-                // Clean filename
-                const cleanTitle = card.title.replace(/[^a-zA-Z0-9\s]/g, '');
-                const fileName = toPascalCase(cleanTitle) + '.jpg';
+                // Create Regular Case filename
+                const fileName = getCleanFileName(card.title) + '.jpg';
                 
                 // Add to ZIP
                 zip.file(fileName, arrayBuffer);
@@ -308,7 +319,7 @@ async function exportByCategorySeparate(allCards) {
         const cards = cardsByType[type];
         if (cards.length > 0) {
             if (confirm(`Generate ZIP for ${type} (${cards.length} cards)?`)) {
-                await exportSingleZip(cards, `AEW-${type}-Cards.zip`);
+                await exportSingleZip(cards, `AEW ${type} Cards.zip`);
                 // Small delay between downloads
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
@@ -338,7 +349,7 @@ async function exportByCategorySingle(allCards) {
     
     if (cardsByType[selectedTypeName] && cardsByType[selectedTypeName].length > 0) {
         const cards = cardsByType[selectedTypeName];
-        await exportSingleZip(cards, `AEW-${selectedTypeName}-Cards.zip`);
+        await exportSingleZip(cards, `AEW ${selectedTypeName} Cards.zip`);
     } else {
         alert(`No cards found for type: ${selectedTypeName}`);
     }
@@ -356,7 +367,7 @@ function groupCardsByType(cards) {
         // Future types (when added):
         Boon: cards.filter(c => c.card_type === 'Boon'),
         Injury: cards.filter(c => c.card_type === 'Injury'),
-        'Call-Name': cards.filter(c => c.card_type === 'Call Name'),
+        'Call Name': cards.filter(c => c.card_type === 'Call Name'),
         Faction: cards.filter(c => c.card_type === 'Faction')
     };
 }
@@ -420,8 +431,8 @@ export async function exportAllCardsAsImagesFallback() {
             const a = document.createElement('a');
             a.href = dataUrl;
             
-            const cleanTitle = card.title.replace(/[^a-zA-Z0-9\s]/g, '');
-            const fileName = toPascalCase(cleanTitle) + '.jpg';
+            // Use Regular Case for filenames
+            const fileName = getCleanFileName(card.title) + '.jpg';
             a.download = fileName;
             
             document.body.appendChild(a);
