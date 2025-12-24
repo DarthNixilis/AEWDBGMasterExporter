@@ -42,6 +42,33 @@ async function loadJSZip() {
     }
 }
 
+// Create a modal dialog
+function createModal(title, contentHTML, width = '400px') {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9998;display:flex;justify-content:center;align-items:center;';
+    
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `background:white;padding:30px;border-radius:10px;box-shadow:0 0 20px rgba(0,0,0,0.3);width:${width};max-width:90%;font-family:Arial,sans-serif;`;
+    
+    modalContent.innerHTML = `
+        <h3 style="margin-top:0;">${title}</h3>
+        ${contentHTML}
+    `;
+    
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    
+    return {
+        modal,
+        modalContent,
+        remove: () => {
+            if (modal.parentNode) {
+                document.body.removeChild(modal);
+            }
+        }
+    };
+}
+
 export async function exportAllCardsAsImages() {
     const allCards = [...state.cardDatabase];
     
@@ -50,16 +77,8 @@ export async function exportAllCardsAsImages() {
         return;
     }
     
-    // Modal with export type options
-    const exportModal = document.createElement('div');
-    exportModal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9998;display:flex;justify-content:center;align-items:center;';
-    
-    const exportModalContent = document.createElement('div');
-    exportModalContent.style.cssText = 'background:white;padding:30px;border-radius:10px;box-shadow:0 0 20px rgba(0,0,0,0.3);width:400px;max-width:90%;font-family:Arial,sans-serif;';
-    
-    exportModalContent.innerHTML = `
-        <h3 style="margin-top:0;">Export Options</h3>
-        
+    // Main export options modal
+    const modal = createModal('Export Options', `
         <div style="margin-bottom:20px;">
             <label style="display:block;margin-bottom:10px;font-weight:bold;">
                 <input type="checkbox" id="exportUsePascalCase" checked style="margin-right:8px;">
@@ -101,14 +120,11 @@ export async function exportAllCardsAsImages() {
                 Export
             </button>
         </div>
-    `;
-    
-    exportModal.appendChild(exportModalContent);
-    document.body.appendChild(exportModal);
+    `);
     
     return new Promise((resolve) => {
         document.getElementById('exportCancelBtn').onclick = () => {
-            document.body.removeChild(exportModal);
+            modal.remove();
             resolve();
         };
         
@@ -118,7 +134,7 @@ export async function exportAllCardsAsImages() {
             const exportType = document.getElementById('exportTypeSelect').value;
             const exportSize = document.getElementById('exportSizeSelect').value;
             
-            document.body.removeChild(exportModal);
+            modal.remove();
             
             const exportOptions = {
                 usePascalCase,
@@ -126,12 +142,16 @@ export async function exportAllCardsAsImages() {
                 size: exportSize
             };
             
-            if (exportType === 'all') {
-                await exportSingleZip(allCards, 'AEW-Complete-Set.zip', exportOptions);
-            } else if (exportType === 'bytype') {
-                await exportByCategorySeparate(allCards, exportOptions);
-            } else if (exportType === 'singletype') {
-                await exportByCategorySingle(allCards, exportOptions);
+            try {
+                if (exportType === 'all') {
+                    await exportSingleZip(allCards, 'AEW-Complete-Set.zip', exportOptions);
+                } else if (exportType === 'bytype') {
+                    await exportByCategorySeparate(allCards, exportOptions);
+                } else if (exportType === 'singletype') {
+                    await exportByCategorySingle(allCards, exportOptions);
+                }
+            } catch (error) {
+                alert(`Export failed: ${error.message}`);
             }
             
             resolve();
@@ -476,7 +496,7 @@ async function exportByCategorySeparate(allCards, options) {
     alert('All category exports completed!');
 }
 
-// Export a single selected card type
+// Export a single selected card type - FIXED VERSION WITH MODAL
 async function exportByCategorySingle(allCards, options) {
     const groups = groupCardsByType(allCards);
     const types = Object.keys(groups);
@@ -486,41 +506,44 @@ async function exportByCategorySingle(allCards, options) {
         return;
     }
     
-    // Build type selection list
-    let typeList = 'Select card type to export:\n\n';
-    types.forEach((type, index) => {
-        typeList += `${index + 1}. ${type} (${groups[type].length} cards)\n`;
+    // Create a modal for type selection instead of using prompt()
+    const typeModal = createModal('Select Card Type to Export', `
+        <div style="margin-bottom:20px;">
+            <strong style="display:block;margin-bottom:10px;">Available Card Types:</strong>
+            <select id="typeSelect" style="width:100%;padding:8px;font-size:16px;margin-bottom:20px;">
+                ${types.map(type => `<option value="${type}">${type} (${groups[type].length} cards)</option>`).join('')}
+            </select>
+        </div>
+        
+        <div style="display:flex;justify-content:space-between;margin-top:25px;">
+            <button id="typeCancelBtn" style="padding:10px 20px;background:#6c757d;color:white;border:none;border-radius:4px;cursor:pointer;">
+                Cancel
+            </button>
+            <button id="typeConfirmBtn" style="padding:10px 20px;background:#20c997;color:white;border:none;border-radius:4px;cursor:pointer;">
+                Export Selected Type
+            </button>
+        </div>
+    `);
+    
+    return new Promise((resolve) => {
+        document.getElementById('typeCancelBtn').onclick = () => {
+            typeModal.remove();
+            resolve();
+        };
+        
+        document.getElementById('typeConfirmBtn').onclick = async () => {
+            const selectedType = document.getElementById('typeSelect').value;
+            typeModal.remove();
+            
+            const cards = groups[selectedType];
+            const zipName = options.usePascalCase 
+                ? `AEW${selectedType.replace(/\s+/g, '')}Cards.zip` 
+                : `AEW ${selectedType} Cards.zip`;
+            
+            await exportSingleZip(cards, zipName, options);
+            resolve();
+        };
     });
-    
-    const selected = prompt(typeList + '\nEnter number or type name:');
-    
-    if (!selected) return;
-    
-    // Try to parse as number first
-    let selectedType;
-    const selectedNum = parseInt(selected);
-    
-    if (!isNaN(selectedNum) && selectedNum >= 1 && selectedNum <= types.length) {
-        selectedType = types[selectedNum - 1];
-    } else {
-        // Try to match by name
-        selectedType = types.find(type => 
-            type.toLowerCase() === selected.toLowerCase() ||
-            type.toLowerCase().includes(selected.toLowerCase())
-        );
-    }
-    
-    if (!selectedType || !groups[selectedType]) {
-        alert(`Type "${selected}" not found. Available types: ${types.join(', ')}`);
-        return;
-    }
-    
-    const cards = groups[selectedType];
-    const zipName = options.usePascalCase 
-        ? `AEW${selectedType.replace(/\s+/g, '')}Cards.zip` 
-        : `AEW ${selectedType} Cards.zip`;
-    
-    await exportSingleZip(cards, zipName, options);
 }
 
 // Fallback export
