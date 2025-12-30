@@ -3,7 +3,7 @@ import * as state from './config.js';
 import * as ui from './ui.js';
 import * as deck from './deck.js';
 import { parseAndLoadDeck } from './importer.js';
-import { generatePlainTextDeck, exportDeckAsImage } from './exporter.js';
+import { generatePlainTextDeck, exportDeckAsImage, generateLackeyCCGDeck } from './exporter.js';
 import { exportAllCardsAsImages, exportAllCardsAsImagesFallback } from './master-export.js';
 
 export function initializeAllEventListeners(refreshCardPool) {
@@ -53,6 +53,9 @@ export function initializeAllEventListeners(refreshCardPool) {
     const exportDeckBtn = document.getElementById('exportDeck');
     const exportAsImageBtn = document.getElementById('exportAsImageBtn');
     const exportAllCardsBtn = document.getElementById('exportAllCards');
+    
+    // Create or get the LackeyCCG export button
+    const exportLackeyBtn = document.getElementById('exportLackeyBtn') || createLackeyExportButton();
 
     wrestlerSelect.addEventListener('change', (e) => {
         const newWrestler = state.cardTitleCache[e.target.value] || null;
@@ -96,6 +99,21 @@ export function initializeAllEventListeners(refreshCardPool) {
         document.body.removeChild(a);
         URL.revokeObjectURL(a.href);
     });
+    
+    // NEW: LackeyCCG Export
+    exportLackeyBtn.addEventListener('click', () => {
+        const text = generateLackeyCCGDeck();
+        const blob = new Blob([text], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        const wrestlerName = state.selectedWrestler ? state.toPascalCase(state.selectedWrestler.title) : "Deck";
+        a.download = `${wrestlerName}-Lackey.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+    });
+
     exportAsImageBtn.addEventListener('click', exportDeckAsImage);
     
     // Export All Cards button with fallback
@@ -148,4 +166,36 @@ export function initializeAllEventListeners(refreshCardPool) {
             if (state.lastFocusedElement) { state.lastFocusedElement.focus(); }
         }
     });
+}
+
+// Helper to create the Lackey export button if it doesn't exist
+function createLackeyExportButton() {
+    const deckActions = document.querySelector('.deck-actions');
+    if (!deckActions) return null;
+    
+    const lackeyBtn = document.createElement('button');
+    lackeyBtn.id = 'exportLackeyBtn';
+    lackeyBtn.textContent = 'Export for LackeyCCG';
+    lackeyBtn.style.backgroundColor = '#17a2b8';
+    lackeyBtn.style.color = 'white';
+    lackeyBtn.style.border = 'none';
+    lackeyBtn.style.borderRadius = '4px';
+    lackeyBtn.style.cursor = 'pointer';
+    lackeyBtn.style.padding = '10px 15px';
+    lackeyBtn.style.marginLeft = '10px';
+    lackeyBtn.style.marginBottom = '5px';
+    
+    // Insert after exportDeckBtn or before exportAsImageBtn
+    const exportDeckBtn = document.getElementById('exportDeck');
+    const exportAsImageBtn = document.getElementById('exportAsImageBtn');
+    
+    if (exportDeckBtn && exportAsImageBtn) {
+        deckActions.insertBefore(lackeyBtn, exportAsImageBtn);
+    } else if (exportDeckBtn) {
+        deckActions.insertBefore(lackeyBtn, exportDeckBtn.nextSibling);
+    } else {
+        deckActions.appendChild(lackeyBtn);
+    }
+    
+    return lackeyBtn;
 }
