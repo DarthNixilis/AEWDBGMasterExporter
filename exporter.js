@@ -20,6 +20,95 @@ export function generatePlainTextDeck() {
     return text;
 }
 
+// NEW: Export as LackeyCCG format
+export function generateLackeyCCGDeck() {
+    const activePersonaTitles = [];
+    if (state.selectedWrestler) activePersonaTitles.push(state.selectedWrestler.title);
+    if (state.selectedManager) activePersonaTitles.push(state.selectedManager.title);
+    const kitCards = state.cardDatabase.filter(card => state.isKitCard(card) && activePersonaTitles.includes(card['Signature For']));
+    
+    let text = '';
+    
+    // Group cards by count
+    const startingCounts = state.startingDeck.reduce((acc, cardTitle) => { 
+        acc[cardTitle] = (acc[cardTitle] || 0) + 1; 
+        return acc; 
+    }, {});
+    
+    const purchaseCounts = state.purchaseDeck.reduce((acc, cardTitle) => { 
+        acc[cardTitle] = (acc[cardTitle] || 0) + 1; 
+        return acc; 
+    }, {});
+    
+    // Add persona cards to starting counts
+    if (state.selectedWrestler) {
+        startingCounts[state.selectedWrestler.title] = (startingCounts[state.selectedWrestler.title] || 0) + 1;
+    }
+    if (state.selectedManager) {
+        startingCounts[state.selectedManager.title] = (startingCounts[state.selectedManager.title] || 0) + 1;
+    }
+    kitCards.forEach(card => {
+        startingCounts[card.title] = (startingCounts[card.title] || 0) + 1;
+    });
+    
+    // Convert to arrays and sort
+    const allCards = [];
+    Object.entries(startingCounts).forEach(([cardTitle, count]) => {
+        allCards.push({ title: cardTitle, count, type: 'starting' });
+    });
+    Object.entries(purchaseCounts).forEach(([cardTitle, count]) => {
+        allCards.push({ title: cardTitle, count, type: 'purchase' });
+    });
+    
+    // Sort by count descending, then by title
+    allCards.sort((a, b) => {
+        if (a.count !== b.count) return b.count - a.count;
+        return a.title.localeCompare(b.title);
+    });
+    
+    // Build the LackeyCCG format
+    // First, add all non-persona starting cards (except kit cards which are already included)
+    const nonPersonaStarting = allCards.filter(card => 
+        card.type === 'starting' && 
+        !state.isSignatureFor(state.cardTitleCache[card.title])
+    );
+    
+    const nonPersonaPurchase = allCards.filter(card => card.type === 'purchase');
+    
+    // Add starting deck
+    nonPersonaStarting.forEach(card => {
+        text += `${card.count}\t${card.title}\n`;
+    });
+    
+    // Add purchase deck marker
+    text += `Purchase_Deck:\n`;
+    
+    // Add purchase deck
+    nonPersonaPurchase.forEach(card => {
+        text += `${card.count}\t${card.title}\n`;
+    });
+    
+    // Add persona marker and persona cards
+    text += `Starting:\n`;
+    
+    // Add wrestler
+    if (state.selectedWrestler) {
+        text += `1\t${state.selectedWrestler.title}\n`;
+    }
+    
+    // Add manager
+    if (state.selectedManager) {
+        text += `1\t${state.selectedManager.title}\n`;
+    }
+    
+    // Add kit cards
+    kitCards.forEach(card => {
+        text += `1\t${card.title}\n`;
+    });
+    
+    return text;
+}
+
 export async function exportDeckAsImage() {
     const uniquePersonaAndKit = [];
     const activePersonaTitles = [];
