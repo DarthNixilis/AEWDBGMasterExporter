@@ -1,3 +1,4 @@
+
 // master-export.js
 import * as state from './config.js';
 import { toPascalCase } from './config.js';
@@ -67,6 +68,29 @@ function createModal(title, contentHTML, width = '400px') {
             }
         }
     };
+}
+
+// Wrap text function for better text handling
+function wrapText(ctx, text, maxWidth, lineHeight, startY) {
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = words[0];
+    
+    for (let i = 1; i < words.length; i++) {
+        const word = words[i];
+        const testLine = currentLine + ' ' + word;
+        const metrics = ctx.measureText(testLine);
+        
+        if (metrics.width > maxWidth && currentLine !== '') {
+            lines.push(currentLine);
+            currentLine = word;
+        } else {
+            currentLine = testLine;
+        }
+    }
+    lines.push(currentLine);
+    
+    return lines;
 }
 
 export async function exportAllCardsAsImages() {
@@ -159,7 +183,7 @@ export async function exportAllCardsAsImages() {
     });
 }
 
-// UPDATED RENDERER with new layout
+// UPDATED RENDERER with clean layout
 function renderCardToCanvas(card, width, height) {
     const canvas = document.createElement('canvas');
     canvas.width = width;
@@ -171,209 +195,292 @@ function renderCardToCanvas(card, width, height) {
     ctx.fillRect(0, 0, width, height);
     
     // Determine if this is the small digital size
-    const isSmallSize = width === 214; // 214x308 for digital/Lackey
+    const isSmallSize = width === 214; // 214x308 for digital
     
     if (isSmallSize) {
         // =================================================================
-        // NEW LAYOUT FOR 214x308 CARDS
+        // CLEAN LAYOUT FOR 214x308 DIGITAL CARDS
         // =================================================================
         
-        // 1. BORDER - THICK
+        // 1. THICK BLACK BORDER
         ctx.strokeStyle = 'black';
         ctx.lineWidth = 3;
         ctx.strokeRect(2, 2, width - 4, height - 4);
         
-        // 2. TOP BAR FOR STATS AND TITLE
-        const topBarHeight = 60;
-        ctx.fillStyle = '#f0f0f0';
-        ctx.fillRect(2, 2, width - 4, topBarHeight - 2);
-        ctx.strokeStyle = '#ccc';
+        // 2. TOP BAR WITH TITLE AND COST
+        const topBarHeight = 45;
+        ctx.fillStyle = '#f8f9fa';
+        ctx.fillRect(3, 3, width - 6, topBarHeight - 3);
+        
+        // Draw separator line
+        ctx.strokeStyle = '#ddd';
         ctx.lineWidth = 1;
-        ctx.strokeRect(2, 2, width - 4, topBarHeight - 2);
+        ctx.beginPath();
+        ctx.moveTo(3, topBarHeight);
+        ctx.lineTo(width - 3, topBarHeight);
+        ctx.stroke();
         
-        // 3. MOMENTUM - LEFT SIDE (BIGGEST)
-        const momentumX = 15;
-        const momentumY = 40;
+        // 3. TITLE - LEFT SIDE
+        const titleX = 10;
+        const titleY = 25;
         
-        if (card.momentum !== null && card.momentum !== undefined) {
-            // Momentum value - HUGE
-            ctx.font = 'bold 52px Arial';
-            ctx.textAlign = 'left';
-            ctx.fillStyle = 'black';
-            ctx.fillText(`${card.momentum}`, momentumX, momentumY);
-            
-            // Small "M" label
-            ctx.font = 'bold 18px Arial';
-            ctx.fillText('M', momentumX, momentumY + 25);
-        }
-        
-        // 4. DAMAGE - BELOW MOMENTUM
-        const damageX = momentumX;
-        const damageY = momentumY + 45;
-        
-        if (card.damage !== null && card.damage !== undefined) {
-            ctx.font = 'bold 32px Arial';
-            ctx.textAlign = 'left';
-            ctx.fillText(`D: ${card.damage}`, damageX, damageY);
-        }
-        
-        // 5. COST - UPPER RIGHT CORNER
-        const costX = width - 25;
-        const costY = 35;
-        
-        if (card.cost !== null && card.cost !== undefined) {
-            ctx.font = 'bold 36px Arial';
-            ctx.textAlign = 'right';
-            
-            // Draw cost in a subtle box
-            const costText = `${card.cost}`;
-            const costWidth = ctx.measureText(costText).width;
-            
-            // Light background for cost
-            ctx.fillStyle = '#e8e8e8';
-            ctx.fillRect(width - costWidth - 35, 15, costWidth + 20, 35);
-            ctx.strokeStyle = '#999';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(width - costWidth - 35, 15, costWidth + 20, 35);
-            
-            // Cost text
-            ctx.fillStyle = 'black';
-            ctx.fillText(costText, costX, costY);
-            
-            // Small "C" label
-            ctx.font = 'bold 16px Arial';
-            ctx.fillText('C', costX - costWidth - 5, costY - 15);
-        }
-        
-        // 6. TITLE - CENTERED, SPANS FROM MOMENTUM TO COST
-        const titleY = 40;
         ctx.fillStyle = 'black';
-        ctx.textAlign = 'center';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
         
-        // Dynamic title font scaling
+        // Fit title to available space
         let title = card.title;
-        let titleFontSize = 20; // Start with 20px
-        let fits = false;
+        let titleFontSize = 16;
+        let titleFits = false;
         
-        // Calculate available width for title (between momentum and cost)
-        const momentumWidth = card.momentum !== null ? 60 : 0;
-        const costWidth = card.cost !== null ? 45 : 0;
-        const availableWidth = width - momentumWidth - costWidth - 30;
-        
-        while (!fits && titleFontSize >= 12) {
+        while (!titleFits && titleFontSize >= 10) {
             ctx.font = `bold ${titleFontSize}px Arial`;
             const titleWidth = ctx.measureText(title).width;
+            const maxTitleWidth = width - 70; // Leave room for cost
             
-            if (titleWidth <= availableWidth) {
-                fits = true;
-            } else {
-                // Try truncating if font is getting small
-                if (titleFontSize <= 14) {
-                    if (title.length > 20) {
-                        title = title.substring(0, 17) + '...';
-                    }
+            if (titleWidth <= maxTitleWidth) {
+                titleFits = true;
+            } else if (titleFontSize === 10) {
+                // Truncate if at minimum size
+                while (ctx.measureText(title + '...').width > maxTitleWidth && title.length > 3) {
+                    title = title.substring(0, title.length - 1);
                 }
+                title = title + '...';
+                titleFits = true;
+            } else {
                 titleFontSize -= 1;
             }
         }
         
-        if (!fits) {
-            // Last resort
-            ctx.font = 'bold 12px Arial';
-            if (title.length > 20) {
-                title = title.substring(0, 17) + '...';
-            }
-        }
+        ctx.fillText(title, titleX, titleY);
         
-        ctx.fillText(title, width / 2, titleY);
-        
-        // 7. TARGET - SMALL, BELOW TITLE
-        const targetTrait = card.text_box?.traits?.find(t => t.name.trim() === 'Target');
-        const targetValue = targetTrait ? targetTrait.value : null;
-        if (targetValue) {
-            const targetY = titleY + 20;
-            ctx.font = 'bold 14px Arial';
+        // 4. COST - RIGHT SIDE (if applicable)
+        if (card.cost !== null && card.cost !== undefined && card.cost !== 'N/a') {
+            const costX = width - 20;
+            const costY = 25;
+            
+            ctx.textAlign = 'right';
+            ctx.font = `bold 18px Arial`;
+            ctx.fillStyle = '#333';
+            
+            // Draw cost in circle
+            const costRadius = 12;
+            const costCircleX = costX - costRadius;
+            const costCircleY = costY;
+            
+            ctx.fillStyle = '#e9ecef';
+            ctx.beginPath();
+            ctx.arc(costCircleX, costCircleY, costRadius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#6c757d';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(costCircleX, costCircleY, costRadius, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            ctx.fillStyle = 'black';
+            ctx.font = `bold 12px Arial`;
             ctx.textAlign = 'center';
-            ctx.fillText(`Target: ${targetValue}`, width / 2, targetY);
+            ctx.textBaseline = 'middle';
+            ctx.fillText(card.cost.toString(), costCircleX, costCircleY);
         }
         
-        // 8. TYPE LINE - MOVED UP
-        const typeY = topBarHeight + 10;
-        ctx.textAlign = 'center';
-        ctx.fillStyle = getTypeColor(card.card_type);
-        ctx.fillRect(10, typeY, width - 20, 22);
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 16px Arial';
-        ctx.fillText(card.card_type.toUpperCase(), width / 2, typeY + 16);
+        // 5. TYPE LINE WITH COLOR CODING
+        const typeY = topBarHeight + 15;
+        const typeBoxHeight = 22;
         
-        // 9. TEXT BOX - MOVED UP, MORE SPACE
-        const textBoxY = typeY + 30;
+        // Get type color
+        const typeColor = getTypeColor(card.card_type);
+        
+        // Draw type background
+        ctx.fillStyle = typeColor;
+        ctx.fillRect(10, typeY, width - 20, typeBoxHeight);
+        
+        // Draw type text
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(card.card_type.toUpperCase(), width / 2, typeY + typeBoxHeight / 2);
+        
+        // 6. STATS BAR (for maneuvers and some actions)
+        let statsY = typeY + typeBoxHeight + 10;
+        let hasStats = false;
+        
+        // Check if card has stats to display
+        const hasDamage = card.damage !== null && card.damage !== undefined && card.damage !== '';
+        const hasMomentum = card.momentum !== null && card.momentum !== undefined && card.momentum !== '';
+        const targetTrait = card.text_box?.traits?.find(t => t.name.trim() === 'Target');
+        const hasTarget = targetTrait && targetTrait.value;
+        
+        if (hasDamage || hasMomentum || hasTarget) {
+            hasStats = true;
+            
+            // Stats bar background
+            ctx.fillStyle = '#f1f3f4';
+            ctx.fillRect(10, statsY, width - 20, 28);
+            ctx.strokeStyle = '#dee2e6';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(10, statsY, width - 20, 28);
+            
+            // Display stats
+            let statsText = '';
+            if (hasDamage) statsText += `D:${card.damage} `;
+            if (hasMomentum) statsText += `M:${card.momentum} `;
+            if (hasTarget) statsText += `T:${targetTrait.value}`;
+            
+            ctx.fillStyle = '#333';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(statsText.trim(), width / 2, statsY + 14);
+            
+            // Adjust text box position
+            statsY += 35;
+        } else {
+            statsY += 5;
+        }
+        
+        // 7. TEXT BOX AREA
+        const textBoxY = statsY;
         const textBoxHeight = height - textBoxY - 15;
         
         // Text box background
-        ctx.fillStyle = '#f8f8f8';
+        ctx.fillStyle = '#ffffff';
         ctx.fillRect(10, textBoxY, width - 20, textBoxHeight);
-        ctx.strokeStyle = '#ccc';
+        ctx.strokeStyle = '#e0e0e0';
         ctx.lineWidth = 1;
         ctx.strokeRect(10, textBoxY, width - 20, textBoxHeight);
         
-        // Card text - DYNAMIC FONT SIZING
-        ctx.fillStyle = 'black';
-        ctx.textAlign = 'center';
-        
-        const text = card.text_box?.raw_text || '';
-        if (text) {
-            // Start with largest font and reduce until it fits
-            let fontSize = 16;
-            let textFits = false;
-            let wrappedLines = [];
+        // 8. CARD TEXT
+        const rawText = card.text_box?.raw_text || '';
+        if (rawText) {
+            ctx.fillStyle = 'black';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
             
-            while (!textFits && fontSize >= 10) {
+            // Define text area
+            const textX = 15;
+            const textY = textBoxY + 10;
+            const maxTextWidth = width - 30;
+            const maxTextHeight = textBoxHeight - 20;
+            
+            // Start with reasonable font size
+            let fontSize = 12;
+            let lines = [];
+            let totalHeight = 0;
+            
+            // Adjust font size to fit
+            while (fontSize >= 8) {
                 ctx.font = `${fontSize}px Arial`;
-                wrappedLines = wrapTextForCenter(ctx, text, width - 30, fontSize);
+                lines = wrapText(ctx, rawText, maxTextWidth);
                 
-                // Calculate total height needed
-                const lineHeight = fontSize * 1.2;
-                const totalHeight = wrappedLines.length * lineHeight;
+                const lineHeight = fontSize * 1.3;
+                totalHeight = lines.length * lineHeight;
                 
-                if (totalHeight <= textBoxHeight - 20) {
-                    textFits = true;
-                } else {
-                    fontSize -= 1;
+                if (totalHeight <= maxTextHeight) {
+                    break;
                 }
+                fontSize -= 0.5;
             }
             
-            // If still doesn't fit at minimum font, truncate
-            if (!textFits && fontSize === 10) {
-                ctx.font = '10px Arial';
-                wrappedLines = wrapTextForCenter(ctx, text, width - 30, 10);
-                // Take only lines that fit
-                const maxLines = Math.floor((textBoxHeight - 20) / (10 * 1.2));
-                if (wrappedLines.length > maxLines) {
-                    wrappedLines = wrappedLines.slice(0, maxLines);
-                    if (wrappedLines[maxLines - 1]) {
-                        wrappedLines[maxLines - 1] = wrappedLines[maxLines - 1].substring(0, Math.max(0, wrappedLines[maxLines - 1].length - 3)) + '...';
-                    }
+            // If still doesn't fit, truncate
+            if (totalHeight > maxTextHeight && fontSize === 8) {
+                // Remove lines until it fits
+                while (lines.length > 0 && (lines.length * fontSize * 1.3) > maxTextHeight) {
+                    lines.pop();
+                }
+                if (lines.length > 0) {
+                    lines[lines.length - 1] = lines[lines.length - 1].substring(0, Math.max(0, lines[lines.length - 1].length - 3)) + '...';
                 }
             }
             
             // Render lines
-            const lineHeight = fontSize * 1.2;
-            const startY = textBoxY + fontSize + 5;
+            const lineHeight = fontSize * 1.3;
+            for (let i = 0; i < lines.length; i++) {
+                const yPos = textY + (i * lineHeight);
+                if (yPos + lineHeight <= textBoxY + textBoxHeight - 5) {
+                    // Style keywords in bold
+                    const keywords = ['Ongoing', 'Enters', 'Finisher', 'Follow-Up', 'Power Attack', 'Focus Attack', 'Cycling', 'Resilient', 'Stun', 'Relentless', 'Sudden'];
+                    let currentX = textX;
+                    const words = lines[i].split(' ');
+                    
+                    for (let word of words) {
+                        const cleanWord = word.replace(/[.,!?;:]$/g, '');
+                        const isKeyword = keywords.some(kw => cleanWord === kw);
+                        
+                        if (isKeyword) {
+                            ctx.font = `bold ${fontSize}px Arial`;
+                            ctx.fillStyle = '#2c3e50';
+                        } else {
+                            ctx.font = `${fontSize}px Arial`;
+                            ctx.fillStyle = '#333';
+                        }
+                        
+                        const wordWidth = ctx.measureText(word + ' ').width;
+                        ctx.fillText(word, currentX, yPos);
+                        currentX += wordWidth;
+                    }
+                }
+            }
+        } else {
+            // No text - show centered message
+            ctx.fillStyle = '#999';
+            ctx.font = 'italic 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('No card text', width / 2, textBoxY + textBoxHeight / 2);
+        }
+        
+        // 9. SPECIAL BANNERS FOR PERSONA CARDS
+        if (card.card_type === 'Wrestler' || card.card_type === 'Manager') {
+            // Top banner
+            ctx.fillStyle = card.card_type === 'Wrestler' ? '#2c3e50' : '#7f8c8d';
+            ctx.fillRect(0, 0, width, 18);
             
-            for (let i = 0; i < wrappedLines.length; i++) {
-                ctx.fillText(wrappedLines[i], width / 2, startY + (i * lineHeight));
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`${card.card_type.toUpperCase()}`, width / 2, 9);
+            
+            // Bottom banner for kit indication
+            if (card['Wrestler Kit'] && card['Wrestler Kit'].toUpperCase() === 'TRUE') {
+                ctx.fillStyle = '#f39c12';
+                ctx.fillRect(0, height - 15, width, 15);
+                
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 9px Arial';
+                ctx.fillText('KIT CARD', width / 2, height - 7.5);
             }
         }
         
-        // 10. WRESTLER/MANAGER BANNER if applicable
-        if (card.card_type === 'Wrestler' || card.card_type === 'Manager') {
-            ctx.fillStyle = card.card_type === 'Wrestler' ? '#333' : '#666';
-            ctx.fillRect(0, 0, width, 15);
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 12px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText(card.card_type.toUpperCase(), width / 2, 11);
+        // 10. INJURY/BOON SPECIAL STYLING
+        if (card.card_type === 'Injury') {
+            // Red border for Injury
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(4, 4, width - 8, height - 8);
+            
+            // Injury icon in corner
+            ctx.fillStyle = '#e74c3c';
+            ctx.font = 'bold 20px Arial';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText('✖', 8, 8);
+        } else if (card.card_type === 'Boon') {
+            // Green border for Boon
+            ctx.strokeStyle = '#27ae60';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(4, 4, width - 8, height - 8);
+            
+            // Boon icon in corner
+            ctx.fillStyle = '#27ae60';
+            ctx.font = 'bold 20px Arial';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText('✓', 8, 8);
         }
         
     } else {
@@ -387,211 +494,145 @@ function renderCardToCanvas(card, width, height) {
         ctx.lineWidth = 3 * scale;
         ctx.strokeRect(5 * scale, 5 * scale, width - 10 * scale, height - 10 * scale);
         
-        // Top bar for stats
-        const topBarHeight = 90 * scale;
-        ctx.fillStyle = '#f0f0f0';
+        // Top bar with title
+        const topBarHeight = 80 * scale;
+        ctx.fillStyle = '#f8f9fa';
         ctx.fillRect(5 * scale, 5 * scale, width - 10 * scale, topBarHeight);
-        ctx.strokeStyle = '#ccc';
-        ctx.lineWidth = 1 * scale;
-        ctx.strokeRect(5 * scale, 5 * scale, width - 10 * scale, topBarHeight);
         
-        // MOMENTUM - LEFT SIDE
-        const momentumX = 30 * scale;
-        const momentumY = 65 * scale;
-        
-        if (card.momentum !== null && card.momentum !== undefined) {
-            // Momentum value - HUGE
-            ctx.font = `bold ${80 * scale}px Arial`;
-            ctx.textAlign = 'left';
-            ctx.fillStyle = 'black';
-            ctx.fillText(`${card.momentum}`, momentumX, momentumY);
-            
-            // "M" label
-            ctx.font = `bold ${24 * scale}px Arial`;
-            ctx.fillText('M', momentumX, momentumY + 35 * scale);
-        }
-        
-        // DAMAGE - BELOW MOMENTUM
-        const damageX = momentumX;
-        const damageY = momentumY + 70 * scale;
-        
-        if (card.damage !== null && card.damage !== undefined) {
-            ctx.font = `bold ${48 * scale}px Arial`;
-            ctx.textAlign = 'left';
-            ctx.fillText(`D: ${card.damage}`, damageX, damageY);
-        }
-        
-        // COST - UPPER RIGHT
-        const costX = width - 40 * scale;
-        const costY = 60 * scale;
-        
-        if (card.cost !== null && card.cost !== undefined) {
-            ctx.font = `bold ${56 * scale}px Arial`;
-            ctx.textAlign = 'right';
-            
-            // Cost background
-            const costText = `${card.cost}`;
-            const costWidth = ctx.measureText(costText).width;
-            
-            ctx.fillStyle = '#e8e8e8';
-            ctx.fillRect(width - costWidth - 60 * scale, 20 * scale, costWidth + 40 * scale, 55 * scale);
-            ctx.strokeStyle = '#999';
-            ctx.lineWidth = 1 * scale;
-            ctx.strokeRect(width - costWidth - 60 * scale, 20 * scale, costWidth + 40 * scale, 55 * scale);
-            
-            // Cost text
-            ctx.fillStyle = 'black';
-            ctx.fillText(costText, costX, costY);
-            
-            // "C" label
-            ctx.font = `bold ${20 * scale}px Arial`;
-            ctx.fillText('C', costX - costWidth - 15 * scale, costY - 25 * scale);
-        }
-        
-        // TITLE - CENTERED IN TOP BAR
-        const titleY = 65 * scale;
+        // Title
         ctx.fillStyle = 'black';
-        ctx.textAlign = 'center';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
         
         let title = card.title;
-        let titleFontSize = 48 * scale;
-        let fits = false;
+        let titleFontSize = 32 * scale;
+        let titleFits = false;
         
-        // Available width for title
-        const momentumWidth = card.momentum !== null ? 100 * scale : 0;
-        const costWidth = card.cost !== null ? 80 * scale : 0;
-        const availableWidth = width - momentumWidth - costWidth - 60 * scale;
-        
-        while (!fits && titleFontSize >= 24 * scale) {
+        while (!titleFits && titleFontSize >= 16 * scale) {
             ctx.font = `bold ${titleFontSize}px Arial`;
             const titleWidth = ctx.measureText(title).width;
+            const maxTitleWidth = width - 100 * scale;
             
-            if (titleWidth <= availableWidth) {
-                fits = true;
+            if (titleWidth <= maxTitleWidth) {
+                titleFits = true;
+            } else if (titleFontSize === 16 * scale) {
+                title = title.substring(0, 20) + '...';
+                titleFits = true;
             } else {
-                titleFontSize -= 4 * scale;
+                titleFontSize -= 2 * scale;
             }
         }
         
-        if (!fits) {
-            ctx.font = `bold ${24 * scale}px Arial`;
-            if (title.length > 25) {
-                title = title.substring(0, 22) + '...';
-            }
-        }
+        ctx.fillText(title, 20 * scale, topBarHeight / 2);
         
-        ctx.fillText(title, width / 2, titleY);
-        
-        // Target
-        const targetTrait = card.text_box?.traits?.find(t => t.name.trim() === 'Target');
-        const targetValue = targetTrait ? targetTrait.value : null;
-        if (targetValue) {
-            const targetY = titleY + 35 * scale;
+        // Cost
+        if (card.cost !== null && card.cost !== undefined && card.cost !== 'N/a') {
+            ctx.textAlign = 'right';
             ctx.font = `bold ${28 * scale}px Arial`;
-            ctx.fillText(`Target: ${targetValue}`, width / 2, targetY);
+            ctx.fillStyle = '#333';
+            ctx.fillText(`C: ${card.cost}`, width - 20 * scale, topBarHeight / 2);
         }
         
-        // Type line - moved up
-        const typeY = topBarHeight + 25 * scale;
-        ctx.textAlign = 'center';
-        ctx.fillStyle = getTypeColor(card.card_type);
+        // Type line
+        const typeY = topBarHeight + 20 * scale;
         const typeBoxHeight = 50 * scale;
-        ctx.fillRect(20 * scale, typeY, width - 40 * scale, typeBoxHeight);
-        ctx.fillStyle = 'white';
-        ctx.font = `bold ${32 * scale}px Arial`;
-        ctx.fillText(card.card_type, width / 2, typeY + 35 * scale);
+        const typeColor = getTypeColor(card.card_type);
         
-        // Text box - moved up
-        const textBoxY = typeY + 70 * scale;
+        ctx.fillStyle = typeColor;
+        ctx.fillRect(20 * scale, typeY, width - 40 * scale, typeBoxHeight);
+        
+        ctx.fillStyle = 'white';
+        ctx.font = `bold ${24 * scale}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(card.card_type.toUpperCase(), width / 2, typeY + typeBoxHeight / 2);
+        
+        // Stats area
+        let statsY = typeY + typeBoxHeight + 20 * scale;
+        const hasDamage = card.damage !== null && card.damage !== undefined && card.damage !== '';
+        const hasMomentum = card.momentum !== null && card.momentum !== undefined && card.momentum !== '';
+        const targetTrait = card.text_box?.traits?.find(t => t.name.trim() === 'Target');
+        const hasTarget = targetTrait && targetTrait.value;
+        
+        if (hasDamage || hasMomentum || hasTarget) {
+            ctx.fillStyle = '#f1f3f4';
+            ctx.fillRect(20 * scale, statsY, width - 40 * scale, 40 * scale);
+            
+            let statsText = '';
+            if (hasDamage) statsText += `Damage: ${card.damage}  `;
+            if (hasMomentum) statsText += `Momentum: ${card.momentum}  `;
+            if (hasTarget) statsText += `Target: ${targetTrait.value}`;
+            
+            ctx.fillStyle = '#333';
+            ctx.font = `bold ${18 * scale}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillText(statsText.trim(), width / 2, statsY + 20 * scale);
+            
+            statsY += 60 * scale;
+        } else {
+            statsY += 10 * scale;
+        }
+        
+        // Text box
+        const textBoxY = statsY;
         const textBoxHeight = height - textBoxY - 30 * scale;
-        ctx.fillStyle = '#f8f8f8';
+        
+        ctx.fillStyle = '#ffffff';
         ctx.fillRect(20 * scale, textBoxY, width - 40 * scale, textBoxHeight);
-        ctx.strokeStyle = '#ccc';
+        ctx.strokeStyle = '#e0e0e0';
         ctx.lineWidth = 2 * scale;
         ctx.strokeRect(20 * scale, textBoxY, width - 40 * scale, textBoxHeight);
         
-        // Card text - dynamic scaling
-        ctx.fillStyle = 'black';
-        ctx.textAlign = 'center';
-        
-        const text = card.text_box?.raw_text || '';
-        if (text) {
-            let fontSize = 32 * scale;
-            let textFits = false;
-            let wrappedLines = [];
+        // Card text
+        const rawText = card.text_box?.raw_text || '';
+        if (rawText) {
+            ctx.fillStyle = '#333';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
             
-            while (!textFits && fontSize >= 14 * scale) {
+            const textX = 30 * scale;
+            const textY = textBoxY + 20 * scale;
+            const maxTextWidth = width - 60 * scale;
+            
+            let fontSize = 20 * scale;
+            let lines = [];
+            
+            while (fontSize >= 12 * scale) {
                 ctx.font = `${fontSize}px Arial`;
-                wrappedLines = wrapTextForCenter(ctx, text, width - 60 * scale, fontSize);
+                lines = wrapText(ctx, rawText, maxTextWidth);
                 
-                const lineHeight = fontSize * 1.3;
-                const totalHeight = wrappedLines.length * lineHeight;
+                const lineHeight = fontSize * 1.4;
+                const totalHeight = lines.length * lineHeight;
                 
                 if (totalHeight <= textBoxHeight - 40 * scale) {
-                    textFits = true;
-                } else {
-                    fontSize -= 2 * scale;
-                }
-            }
-            
-            if (!textFits) {
-                fontSize = 14 * scale;
-                ctx.font = `${fontSize}px Arial`;
-                wrappedLines = wrapTextForCenter(ctx, text, width - 60 * scale, fontSize);
-            }
-            
-            const lineHeight = fontSize * 1.3;
-            const startY = textBoxY + fontSize + 15 * scale;
-            
-            for (let i = 0; i < wrappedLines.length; i++) {
-                if (startY + (i * lineHeight) < textBoxY + textBoxHeight - 10 * scale) {
-                    ctx.fillText(wrappedLines[i], width / 2, startY + (i * lineHeight));
-                } else {
                     break;
+                }
+                fontSize -= 1 * scale;
+            }
+            
+            const lineHeight = fontSize * 1.4;
+            for (let i = 0; i < lines.length; i++) {
+                const yPos = textY + (i * lineHeight);
+                if (yPos + lineHeight <= textBoxY + textBoxHeight - 10 * scale) {
+                    ctx.fillText(lines[i], textX, yPos);
                 }
             }
         }
         
-        // Wrestler/Manager banner
+        // Special banners for larger cards
         if (card.card_type === 'Wrestler' || card.card_type === 'Manager') {
-            ctx.fillStyle = card.card_type === 'Wrestler' ? '#333' : '#666';
-            ctx.fillRect(0, 0, width, 25 * scale);
+            ctx.fillStyle = card.card_type === 'Wrestler' ? '#2c3e50' : '#7f8c8d';
+            ctx.fillRect(0, 0, width, 30 * scale);
+            
             ctx.fillStyle = 'white';
-            ctx.font = `bold ${18 * scale}px Arial`;
+            ctx.font = `bold ${16 * scale}px Arial`;
             ctx.textAlign = 'center';
-            ctx.fillText(`${card.card_type.toUpperCase()} CARD`, width / 2, 18 * scale);
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`${card.card_type.toUpperCase()} CARD`, width / 2, 15 * scale);
         }
     }
     
     return canvas;
-}
-
-// Helper function for center text wrapping
-function wrapTextForCenter(ctx, text, maxWidth, fontSize) {
-    if (!text) return [];
-    
-    const words = text.split(' ');
-    const lines = [];
-    let currentLine = words[0] || '';
-    
-    for (let i = 1; i < words.length; i++) {
-        const word = words[i];
-        const testLine = currentLine + ' ' + word;
-        const metrics = ctx.measureText(testLine);
-        
-        if (metrics.width > maxWidth && currentLine !== '') {
-            lines.push(currentLine);
-            currentLine = word;
-        } else {
-            currentLine = testLine;
-        }
-    }
-    
-    if (currentLine) {
-        lines.push(currentLine);
-    }
-    
-    return lines;
 }
 
 function getTypeColor(type) {
@@ -847,4 +888,4 @@ async function exportByCategorySingle(allCards, options) {
 // Fallback export
 export async function exportAllCardsAsImagesFallback() {
     alert('Please use the main export function.');
-        }
+    }
