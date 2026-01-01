@@ -12,6 +12,24 @@ function getDOMReferences() {
     personaDisplay = document.getElementById('personaDisplay');
 }
 
+// Helper function to get card type color
+function getTypeColor(type) {
+    const typeColors = {
+        'Action': '#9c5a9c',
+        'Response': '#c84c4c',
+        'Submission': '#5aa05a',
+        'Strike': '#4c82c8',
+        'Grapple': '#e68a00',
+        'Wrestler': '#333333',
+        'Manager': '#666666',
+        'Boon': '#17a2b8',
+        'Injury': '#6c757d',
+        'Call Name': '#fd7e14',
+        'Faction': '#20c997'
+    };
+    return typeColors[type] || '#6c757d';
+}
+
 export function renderCardPool() {
     if (!searchResults) getDOMReferences();
     if (!searchResults) return;
@@ -96,24 +114,6 @@ export function renderCardPool() {
     }
 }
 
-// Helper function to get card type color
-function getTypeColor(type) {
-    const typeColors = {
-        'Action': '#9c5a9c',
-        'Response': '#c84c4c',
-        'Submission': '#5aa05a',
-        'Strike': '#4c82c8',
-        'Grapple': '#e68a00',
-        'Wrestler': '#333333',
-        'Manager': '#666666',
-        'Boon': '#17a2b8',
-        'Injury': '#6c757d',
-        'Call Name': '#fd7e14',
-        'Faction': '#20c997'
-    };
-    return typeColors[type] || '#6c757d';
-}
-
 // Helper function to show card modal
 function showCardModal(card) {
     // This should show a modal with card details
@@ -127,34 +127,6 @@ function addCardToDeck(cardTitle, deckType) {
     // You can implement your deck logic here
 }
 
-// Get kit cards for selected personas
-function getKitCards() {
-    const activePersonaTitles = [];
-    const wrestler = store.get('selectedWrestler');
-    const manager = store.get('selectedManager');
-    const callName = store.get('selectedCallName');
-    const faction = store.get('selectedFaction');
-    
-    if (wrestler) activePersonaTitles.push(wrestler.title);
-    if (manager) activePersonaTitles.push(manager.title);
-    if (callName) activePersonaTitles.push(callName.title);
-    if (faction) activePersonaTitles.push(faction.title);
-    
-    const allCards = store.get('cardDatabase') || [];
-    const kitCards = allCards.filter(card => {
-        // Check if it's a kit card (has "Wrestler Kit" = TRUE and "Signature For" matches a selected persona)
-        const isKitCard = card['Wrestler Kit'] === true || 
-                         (typeof card['Wrestler Kit'] === 'string' && 
-                          card['Wrestler Kit'].toUpperCase() === 'TRUE');
-        
-        const signatureFor = card['Signature For'];
-        
-        return isKitCard && signatureFor && activePersonaTitles.includes(signatureFor);
-    });
-    
-    return kitCards;
-}
-
 export function renderPersonaDisplay() {
     if (!personaDisplay) getDOMReferences();
     if (!personaDisplay) return;
@@ -164,8 +136,54 @@ export function renderPersonaDisplay() {
     const callName = store.get('selectedCallName');
     const faction = store.get('selectedFaction');
     
-    // Get kit cards for selected personas
-    const kitCards = getKitCards();
+    // Get all cards
+    const allCards = store.get('cardDatabase') || [];
+    
+    // Find kit cards manually by checking each card
+    const kitCards = [];
+    const activePersonaTitles = [];
+    
+    if (wrestler) activePersonaTitles.push(wrestler.title);
+    if (manager) activePersonaTitles.push(manager.title);
+    if (callName) activePersonaTitles.push(callName.title);
+    if (faction) activePersonaTitles.push(faction.title);
+    
+    console.log('Looking for kit cards for:', activePersonaTitles);
+    
+    // Manually check each card
+    allCards.forEach(card => {
+        // Check if it has Wrestler Kit
+        const wrestlerKit = card['Wrestler Kit'];
+        let isKitCard = false;
+        
+        // Check different possible formats for TRUE
+        if (wrestlerKit === true) {
+            isKitCard = true;
+        } else if (typeof wrestlerKit === 'string') {
+            isKitCard = wrestlerKit.trim().toUpperCase() === 'TRUE';
+        } else if (wrestlerKit === 1 || wrestlerKit === '1') {
+            isKitCard = true;
+        }
+        
+        if (isKitCard) {
+            const signatureFor = card['Signature For'];
+            console.log(`Found kit card: ${card.title}, Signature For: "${signatureFor}"`);
+            
+            // Check if it matches any active persona (case-insensitive, trimmed)
+            if (signatureFor) {
+                const cleanSignature = signatureFor.toString().trim();
+                const matches = activePersonaTitles.some(persona => 
+                    persona && persona.toString().trim() === cleanSignature);
+                
+                if (matches) {
+                    kitCards.push(card);
+                    console.log(`  -> Matches ${cleanSignature}`);
+                }
+            }
+        }
+    });
+    
+    console.log(`Found ${kitCards.length} kit cards`);
     
     // Show the container only if we have at least one persona or kit cards
     const hasPersona = wrestler || manager || callName || faction || kitCards.length > 0;
@@ -189,22 +207,23 @@ export function renderPersonaDisplay() {
         if (kitCards.length > 0) {
             html += `
                 <div style="margin-top: 20px; padding: 15px; background: #fff; border-radius: 8px; border: 1px solid #ddd;">
-                    <h3 style="margin-top: 0; margin-bottom: 10px; color: #333; font-size: 1.1em;">Kit Cards</h3>
-                    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                    <h3 style="margin-top: 0; margin-bottom: 10px; color: #333; font-size: 1.1em;">Kit Cards (${kitCards.length})</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;">
             `;
             
             kitCards.forEach(card => {
                 const typeColor = getTypeColor(card.card_type);
                 html += `
-                    <div style="flex: 1; min-width: 150px; max-width: 200px; padding: 10px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid ${typeColor};">
-                        <div style="font-weight: bold; color: #333; margin-bottom: 5px;">${card.title}</div>
-                        <div style="font-size: 0.85em; color: #666;">
+                    <div style="padding: 10px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid ${typeColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <div style="font-weight: bold; color: #333; margin-bottom: 5px; font-size: 0.95em;">${card.title}</div>
+                        <div style="font-size: 0.8em; color: #666; margin-bottom: 3px;">
                             <span style="color: ${typeColor}; font-weight: bold;">${card.card_type}</span>
-                            ${card.cost !== null && card.cost !== undefined ? ` • Cost: ${card.cost}` : ''}
-                            ${card.damage !== null && card.damage !== undefined ? ` • Damage: ${card.damage}` : ''}
+                            ${card.cost !== null && card.cost !== undefined ? ` • C:${card.cost}` : ''}
+                            ${card.damage !== null && card.damage !== undefined ? ` • D:${card.damage}` : ''}
+                            ${card.momentum !== null && card.momentum !== undefined ? ` • M:${card.momentum}` : ''}
                         </div>
-                        <div style="font-size: 0.8em; color: #888; margin-top: 5px; font-style: italic;">
-                            For: ${card['Signature For'] || 'Unknown'}
+                        <div style="font-size: 0.75em; color: #888; margin-top: 5px; font-style: italic; border-top: 1px solid #eee; padding-top: 5px;">
+                            For: <strong>${card['Signature For'] || 'Unknown'}</strong>
                         </div>
                     </div>
                 `;
@@ -212,6 +231,15 @@ export function renderPersonaDisplay() {
             
             html += `
                     </div>
+                </div>
+            `;
+        } else if (activePersonaTitles.length > 0) {
+            // Show message if no kit cards found but we have personas selected
+            html += `
+                <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border-radius: 8px; border: 1px solid #ffeaa7; color: #856404;">
+                    <strong>Note:</strong> No kit cards found for selected personas.
+                    ${wrestler ? `<br>• ${wrestler.title} might not have kit cards yet` : ''}
+                    ${faction ? `<br>• ${faction.title} might not have a kit card yet` : ''}
                 </div>
             `;
         }
@@ -299,4 +327,4 @@ export function initializeUI() {
     renderPersonaDisplay();
     renderCardPool();
     renderDecks();
-}
+} 
