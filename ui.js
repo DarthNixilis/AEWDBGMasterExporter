@@ -21,13 +21,16 @@ export function renderCardPool() {
     const numColumns = store.get('numGridColumns') || 3;
     
     searchResults.innerHTML = '';
-    searchResults.className = `card-list ${viewMode}-view`;
     
     if (viewMode === 'grid') {
+        // GRID VIEW - cards with images
+        searchResults.className = 'card-list grid-view';
         searchResults.style.display = 'grid';
         searchResults.style.gridTemplateColumns = `repeat(${numColumns}, 1fr)`;
-        searchResults.style.gap = '10px';
+        searchResults.style.gap = '15px';
         searchResults.style.overflowY = 'auto';
+        searchResults.removeAttribute('data-columns');
+        searchResults.setAttribute('data-columns', numColumns);
         
         cards.forEach(card => {
             const cardEl = document.createElement('div');
@@ -36,6 +39,8 @@ export function renderCardPool() {
             searchResults.appendChild(cardEl);
         });
     } else {
+        // LIST VIEW - simple text list
+        searchResults.className = 'card-list list-view';
         searchResults.style.display = 'block';
         searchResults.style.gridTemplateColumns = 'none';
         searchResults.style.overflowY = 'auto';
@@ -47,20 +52,79 @@ export function renderCardPool() {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                padding: 8px;
-                border-bottom: 1px solid #f0f0f0;
+                padding: 10px 8px;
+                border-bottom: 1px solid #e0e0e0;
                 cursor: pointer;
+                transition: background-color 0.2s;
             `;
+            
+            // Card info with type and cost
+            const typeColor = getTypeColor(card.card_type);
             cardEl.innerHTML = `
-                <span class="card-title" style="flex-grow:1;">${card.title}</span>
-                <div class="card-buttons" style="display:flex;gap:5px;">
-                    <button data-deck-target="starting" style="padding:5px 10px;background:#28a745;color:white;border:none;border-radius:4px;cursor:pointer;">+ Starting</button>
-                    <button class="btn-purchase" data-deck-target="purchase" style="padding:5px 10px;background:#6f42c1;color:white;border:none;border-radius:4px;cursor:pointer;">+ Purchase</button>
+                <div style="flex-grow: 1;">
+                    <div style="font-weight: bold; color: #333; margin-bottom: 3px;">${card.title}</div>
+                    <div style="font-size: 0.85em; color: #666;">
+                        <span style="color: ${typeColor}; font-weight: bold;">${card.card_type}</span>
+                        ${card.cost !== null && card.cost !== undefined ? ` • Cost: ${card.cost}` : ''}
+                        ${card.damage !== null && card.damage !== undefined ? ` • Damage: ${card.damage}` : ''}
+                    </div>
+                </div>
+                <div class="card-buttons" style="display:flex;gap:8px;flex-shrink:0;">
+                    <button data-deck-target="starting" style="padding:6px 12px;background:#28a745;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.9em;">+ Starting</button>
+                    <button class="btn-purchase" data-deck-target="purchase" style="padding:6px 12px;background:#6f42c1;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.9em;">+ Purchase</button>
                 </div>
             `;
+            
+            // Add click handlers for buttons
+            cardEl.querySelector('button[data-deck-target="starting"]').addEventListener('click', (e) => {
+                e.stopPropagation();
+                addCardToDeck(card.title, 'starting');
+            });
+            
+            cardEl.querySelector('button.btn-purchase').addEventListener('click', (e) => {
+                e.stopPropagation();
+                addCardToDeck(card.title, 'purchase');
+            });
+            
+            // Click on card title to show modal
+            cardEl.querySelector('div:first-child').addEventListener('click', () => {
+                showCardModal(card);
+            });
+            
             searchResults.appendChild(cardEl);
         });
     }
+}
+
+// Helper function to get card type color
+function getTypeColor(type) {
+    const typeColors = {
+        'Action': '#9c5a9c',
+        'Response': '#c84c4c',
+        'Submission': '#5aa05a',
+        'Strike': '#4c82c8',
+        'Grapple': '#e68a00',
+        'Wrestler': '#333333',
+        'Manager': '#666666',
+        'Boon': '#17a2b8',
+        'Injury': '#6c757d',
+        'Call Name': '#fd7e14',
+        'Faction': '#20c997'
+    };
+    return typeColors[type] || '#6c757d';
+}
+
+// Helper function to show card modal (you'll need to implement this or import it)
+function showCardModal(card) {
+    // This should show a modal with card details
+    console.log('Show card modal for:', card.title);
+    // You'll need to implement or import your modal functionality
+}
+
+// Helper function to add card to deck (you'll need to import this)
+function addCardToDeck(cardTitle, deckType) {
+    console.log('Add to deck:', cardTitle, deckType);
+    // You'll need to implement or import your deck functionality
 }
 
 export function renderPersonaDisplay() {
@@ -72,14 +136,24 @@ export function renderPersonaDisplay() {
     const callName = store.get('selectedCallName');
     const faction = store.get('selectedFaction');
     
-    personaDisplay.innerHTML = `
-        <div class="persona-info" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #eee; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ccc;">
-            <div><strong>Wrestler:</strong> ${wrestler ? wrestler.title : 'None Selected'}</div>
-            <div><strong>Manager:</strong> ${manager ? manager.title : 'None'}</div>
-            <div><strong>Call Name:</strong> ${callName ? callName.title : 'None'}</div>
-            <div><strong>Faction:</strong> ${faction ? faction.title : 'None'}</div>
-        </div>
-    `;
+    // Show the container only if we have at least one persona
+    const hasPersona = wrestler || manager || callName || faction;
+    personaDisplay.style.display = hasPersona ? 'block' : 'none';
+    
+    if (hasPersona) {
+        personaDisplay.innerHTML = `
+            <div class="persona-info" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #e0e0e0;">
+                <div style="font-weight: bold; color: #333;">Wrestler:</div>
+                <div style="color: #007bff; font-weight: bold;">${wrestler ? wrestler.title : 'None Selected'}</div>
+                <div style="font-weight: bold; color: #333;">Manager:</div>
+                <div style="color: #6c757d;">${manager ? manager.title : 'None'}</div>
+                <div style="font-weight: bold; color: #333;">Call Name:</div>
+                <div style="color: #fd7e14;">${callName ? callName.title : 'None'}</div>
+                <div style="font-weight: bold; color: #333;">Faction:</div>
+                <div style="color: #20c997;">${faction ? faction.title : 'None'}</div>
+            </div>
+        `;
+    }
 }
 
 export function populatePersonaSelectors() {
@@ -96,20 +170,28 @@ export function populatePersonaSelectors() {
     const callNames = allCards.filter(c => c.card_type === 'Call Name');
     const factions = allCards.filter(c => c.card_type === 'Faction');
 
-    wSelect.innerHTML = '<option value="">Select Wrestler</option>' + 
-        wrestlers.map(w => `<option value="${w.title}">${w.title}</option>`).join('');
+    // Populate Wrestlers
+    wSelect.innerHTML = '<option value="">-- Select Wrestler --</option>' + 
+        wrestlers.sort((a, b) => a.title.localeCompare(b.title))
+            .map(w => `<option value="${w.title}">${w.title}</option>`).join('');
     
-    mSelect.innerHTML = '<option value="">Select Manager</option>' + 
-        managers.map(m => `<option value="${m.title}">${m.title}</option>`).join('');
+    // Populate Managers
+    mSelect.innerHTML = '<option value="">-- Select Manager --</option>' + 
+        managers.sort((a, b) => a.title.localeCompare(b.title))
+            .map(m => `<option value="${m.title}">${m.title}</option>`).join('');
     
+    // Populate Call Names (if element exists)
     if (cnSelect) {
-        cnSelect.innerHTML = '<option value="">Select Call Name</option>' + 
-            callNames.map(cn => `<option value="${cn.title}">${cn.title}</option>`).join('');
+        cnSelect.innerHTML = '<option value="">-- Select Call Name --</option>' + 
+            callNames.sort((a, b) => a.title.localeCompare(b.title))
+                .map(cn => `<option value="${cn.title}">${cn.title}</option>`).join('');
     }
     
+    // Populate Factions (if element exists)
     if (fSelect) {
-        fSelect.innerHTML = '<option value="">Select Faction</option>' + 
-            factions.map(f => `<option value="${f.title}">${f.title}</option>`).join('');
+        fSelect.innerHTML = '<option value="">-- Select Faction --</option>' + 
+            factions.sort((a, b) => a.title.localeCompare(b.title))
+                .map(f => `<option value="${f.title}">${f.title}</option>`).join('');
     }
 }
 
@@ -118,12 +200,17 @@ export function renderDecks() {
     const starting = store.get('startingDeck') || [];
     const purchase = store.get('purchaseDeck') || [];
 
-    if (startingDeckList) startingDeckList.innerHTML = starting.map(t => 
-        `<div class="deck-item" style="padding:5px;border-bottom:1px solid #eee;">${t}</div>`
-    ).join('');
-    if (purchaseDeckList) purchaseDeckList.innerHTML = purchase.map(t => 
-        `<div class="deck-item" style="padding:5px;border-bottom:1px solid #eee;">${t}</div>`
-    ).join('');
+    if (startingDeckList) {
+        startingDeckList.innerHTML = starting.length > 0 
+            ? starting.map(t => `<div class="deck-item" style="padding:5px;border-bottom:1px solid #eee;font-size:0.9em;">${t}</div>`).join('')
+            : '<div style="color:#999;font-style:italic;padding:10px;text-align:center;">No cards in starting deck</div>';
+    }
+    
+    if (purchaseDeckList) {
+        purchaseDeckList.innerHTML = purchase.length > 0 
+            ? purchase.map(t => `<div class="deck-item" style="padding:5px;border-bottom:1px solid #eee;font-size:0.9em;">${t}</div>`).join('')
+            : '<div style="color:#999;font-style:italic;padding:10px;text-align:center;">No cards in purchase deck</div>';
+    }
 }
 
 export function initializeUI() {
@@ -142,8 +229,10 @@ export function initializeUI() {
         renderPersonaDisplay();
         renderCardPool();
     });
+    store.subscribe('startingDeck', renderDecks);
+    store.subscribe('purchaseDeck', renderDecks);
 
     renderPersonaDisplay();
     renderCardPool();
     renderDecks();
-}
+} 
