@@ -7,18 +7,17 @@ import { initializeAllEventListeners } from './listeners.js';
 async function initApp() {
     try {
         const dataLoaded = await loadGameData();
-        if (!dataLoaded) throw new Error('Card database failed to load.');
+        if (!dataLoaded) throw new Error("Data fail");
         
-        // Correct function names
         initializeUI();
         initializeAllEventListeners();
         
         store.set('initialized', true);
-        console.log('App Ready');
-    } catch (error) {
-        console.error('Fatal Error:', error);
-        document.body.innerHTML = `<div style="color:white;background:red;padding:20px;">${error.message}</div>`;
+    } catch (e) {
+        console.error(e);
+        document.body.innerHTML = `<div style="padding:20px; color:red;">Error: ${e.message}</div>`;
     }
 }
+
 initApp();
 
