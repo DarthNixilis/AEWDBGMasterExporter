@@ -27,16 +27,40 @@ export function renderCardPool() {
         searchResults.style.display = 'grid';
         searchResults.style.gridTemplateColumns = `repeat(${numColumns}, 1fr)`;
         searchResults.style.gap = '10px';
+        searchResults.style.overflowY = 'auto';
+        
+        cards.forEach(card => {
+            const cardEl = document.createElement('div');
+            cardEl.className = 'grid-card-item';
+            cardEl.innerHTML = generateCardVisualHTML(card);
+            searchResults.appendChild(cardEl);
+        });
     } else {
         searchResults.style.display = 'block';
+        searchResults.style.gridTemplateColumns = 'none';
+        searchResults.style.overflowY = 'auto';
+        
+        cards.forEach(card => {
+            const cardEl = document.createElement('div');
+            cardEl.className = 'card-item';
+            cardEl.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 8px;
+                border-bottom: 1px solid #f0f0f0;
+                cursor: pointer;
+            `;
+            cardEl.innerHTML = `
+                <span class="card-title" style="flex-grow:1;">${card.title}</span>
+                <div class="card-buttons" style="display:flex;gap:5px;">
+                    <button data-deck-target="starting" style="padding:5px 10px;background:#28a745;color:white;border:none;border-radius:4px;cursor:pointer;">+ Starting</button>
+                    <button class="btn-purchase" data-deck-target="purchase" style="padding:5px 10px;background:#6f42c1;color:white;border:none;border-radius:4px;cursor:pointer;">+ Purchase</button>
+                </div>
+            `;
+            searchResults.appendChild(cardEl);
+        });
     }
-    
-    cards.forEach(card => {
-        const cardEl = document.createElement('div');
-        cardEl.className = 'card-item';
-        cardEl.innerHTML = generateCardVisualHTML(card);
-        searchResults.appendChild(cardEl);
-    });
 }
 
 export function renderPersonaDisplay() {
@@ -61,17 +85,32 @@ export function renderPersonaDisplay() {
 export function populatePersonaSelectors() {
     const wSelect = document.getElementById('wrestlerSelect');
     const mSelect = document.getElementById('managerSelect');
+    const cnSelect = document.getElementById('callNameSelect');
+    const fSelect = document.getElementById('factionSelect');
+    
     if (!wSelect) return;
 
     const allCards = store.get('cardDatabase') || [];
     const wrestlers = allCards.filter(c => c.card_type === 'Wrestler');
     const managers = allCards.filter(c => c.card_type === 'Manager');
+    const callNames = allCards.filter(c => c.card_type === 'Call Name');
+    const factions = allCards.filter(c => c.card_type === 'Faction');
 
     wSelect.innerHTML = '<option value="">Select Wrestler</option>' + 
         wrestlers.map(w => `<option value="${w.title}">${w.title}</option>`).join('');
     
     mSelect.innerHTML = '<option value="">Select Manager</option>' + 
         managers.map(m => `<option value="${m.title}">${m.title}</option>`).join('');
+    
+    if (cnSelect) {
+        cnSelect.innerHTML = '<option value="">Select Call Name</option>' + 
+            callNames.map(cn => `<option value="${cn.title}">${cn.title}</option>`).join('');
+    }
+    
+    if (fSelect) {
+        fSelect.innerHTML = '<option value="">Select Faction</option>' + 
+            factions.map(f => `<option value="${f.title}">${f.title}</option>`).join('');
+    }
 }
 
 export function renderDecks() {
@@ -79,14 +118,18 @@ export function renderDecks() {
     const starting = store.get('startingDeck') || [];
     const purchase = store.get('purchaseDeck') || [];
 
-    if (startingDeckList) startingDeckList.innerHTML = starting.map(t => `<div class="deck-item">${t}</div>`).join('');
-    if (purchaseDeckList) purchaseDeckList.innerHTML = purchase.map(t => `<div class="deck-item">${t}</div>`).join('');
+    if (startingDeckList) startingDeckList.innerHTML = starting.map(t => 
+        `<div class="deck-item" style="padding:5px;border-bottom:1px solid #eee;">${t}</div>`
+    ).join('');
+    if (purchaseDeckList) purchaseDeckList.innerHTML = purchase.map(t => 
+        `<div class="deck-item" style="padding:5px;border-bottom:1px solid #eee;">${t}</div>`
+    ).join('');
 }
 
 export function initializeUI() {
     getDOMReferences();
     
-    // Subscribe to every possible state change
+    // Subscribe to state changes
     store.subscribe('selectedWrestler', renderPersonaDisplay);
     store.subscribe('selectedManager', renderPersonaDisplay);
     store.subscribe('selectedCallName', renderPersonaDisplay);
@@ -104,4 +147,3 @@ export function initializeUI() {
     renderCardPool();
     renderDecks();
 }
-

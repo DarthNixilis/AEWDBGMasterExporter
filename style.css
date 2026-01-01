@@ -115,6 +115,46 @@ button.btn-purchase { background-color: var(--purchase-color); color: white; bor
 .import-controls textarea { width: 95%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; resize: vertical; font-family: inherit; }
 .import-controls button { padding: 10px 15px; background-color: var(--primary-color); color: white; border: none; border-radius: 4px; cursor: pointer; align-self: flex-end; }
 .import-status { margin-top: 15px; font-size: 0.9em; }
+
+/* NEW STYLES ADDED FOR THE FIXES */
+.persona-selection {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.persona-selection select {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 5px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 16px;
+    background-color: white;
+}
+
+/* Improve list view appearance */
+.card-list.list-view .card-item:hover {
+    background-color: #f8f9fa;
+}
+
+.card-list.list-view .card-title {
+    font-weight: bold;
+    color: #333;
+}
+
+.card-list.list-view .card-buttons button:hover {
+    opacity: 0.9;
+}
+
+/* Grid column buttons active state */
+.grid-size-controls button.active {
+    background-color: var(--primary-color) !important;
+    color: white !important;
+    border-color: var(--primary-color) !important;
+}
+
 @media (max-width: 768px) { 
     .container { flex-direction: column; padding: 10px; } 
     .search-panel, .deck-panel { min-width: 100%; width: 100%; } 
@@ -122,4 +162,5 @@ button.btn-purchase { background-color: var(--purchase-color); color: white; bor
     .card-list.grid-view { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; } 
     .deck-actions { flex-direction: column; align-items: stretch; }
     .deck-actions button { margin-left: 0; margin-bottom: 10px; }
+    .persona-selection select { font-size: 14px; padding: 8px; }
 }
