@@ -23,7 +23,6 @@ export function renderCardPool() {
     searchResults.innerHTML = '';
     searchResults.className = `card-list ${viewMode}-view`;
     
-    // Force the CSS Grid values based on the store
     if (viewMode === 'grid') {
         searchResults.style.display = 'grid';
         searchResults.style.gridTemplateColumns = `repeat(${numColumns}, 1fr)`;
@@ -49,24 +48,14 @@ export function renderPersonaDisplay() {
     const callName = store.get('selectedCallName');
     const faction = store.get('selectedFaction');
     
-    // This template now includes all 4 required slots
     personaDisplay.innerHTML = `
-        <div class="persona-info" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #eee; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <div class="persona-info" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #eee; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ccc;">
             <div><strong>Wrestler:</strong> ${wrestler ? wrestler.title : 'None Selected'}</div>
             <div><strong>Manager:</strong> ${manager ? manager.title : 'None'}</div>
             <div><strong>Call Name:</strong> ${callName ? callName.title : 'None'}</div>
             <div><strong>Faction:</strong> ${faction ? faction.title : 'None'}</div>
         </div>
     `;
-}
-
-export function renderDecks() {
-    if (!startingDeckList || !purchaseDeckList) getDOMReferences();
-    const starting = store.get('startingDeck') || [];
-    const purchase = store.get('purchaseDeck') || [];
-
-    if (startingDeckList) startingDeckList.innerHTML = starting.map(t => `<div class="deck-item">${t}</div>`).join('');
-    if (purchaseDeckList) purchaseDeckList.innerHTML = purchase.map(t => `<div class="deck-item">${t}</div>`).join('');
 }
 
 export function populatePersonaSelectors() {
@@ -85,10 +74,19 @@ export function populatePersonaSelectors() {
         managers.map(m => `<option value="${m.title}">${m.title}</option>`).join('');
 }
 
+export function renderDecks() {
+    if (!startingDeckList || !purchaseDeckList) getDOMReferences();
+    const starting = store.get('startingDeck') || [];
+    const purchase = store.get('purchaseDeck') || [];
+
+    if (startingDeckList) startingDeckList.innerHTML = starting.map(t => `<div class="deck-item">${t}</div>`).join('');
+    if (purchaseDeckList) purchaseDeckList.innerHTML = purchase.map(t => `<div class="deck-item">${t}</div>`).join('');
+}
+
 export function initializeUI() {
     getDOMReferences();
     
-    // Watch for state changes and redraw automatically
+    // Subscribe to every possible state change
     store.subscribe('selectedWrestler', renderPersonaDisplay);
     store.subscribe('selectedManager', renderPersonaDisplay);
     store.subscribe('selectedCallName', renderPersonaDisplay);
@@ -96,8 +94,12 @@ export function initializeUI() {
     store.subscribe('numGridColumns', renderCardPool);
     store.subscribe('currentViewMode', renderCardPool);
     store.subscribe('activeFilters', renderCardPool);
+    store.subscribe('cardDatabase', () => {
+        populatePersonaSelectors();
+        renderPersonaDisplay();
+        renderCardPool();
+    });
 
-    populatePersonaSelectors();
     renderPersonaDisplay();
     renderCardPool();
     renderDecks();
