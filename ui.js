@@ -5,7 +5,7 @@ import { generateCardVisualHTML } from './card-renderer.js';
 
 let searchResults, startingDeckList, purchaseDeckList, personaDisplay;
 
-function getDOMRefs() {
+function getDOMReferences() {
     searchResults = document.getElementById('searchResults');
     startingDeckList = document.getElementById('startingDeckList');
     purchaseDeckList = document.getElementById('purchaseDeckList');
@@ -13,88 +13,89 @@ function getDOMRefs() {
 }
 
 export function renderCardPool() {
-    if (!searchResults) getDOMRefs();
+    if (!searchResults) getDOMReferences();
     if (!searchResults) return;
 
     const cards = getFilteredAndSortedCardPool();
     const viewMode = store.get('currentViewMode') || 'grid';
-    const cols = store.get('numGridColumns') || 3;
+    const numColumns = store.get('numGridColumns') || 3;
     
     searchResults.innerHTML = '';
     searchResults.className = `card-list ${viewMode}-view`;
     
     if (viewMode === 'grid') {
         searchResults.style.display = 'grid';
-        searchResults.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+        searchResults.style.gridTemplateColumns = `repeat(${numColumns}, 1fr)`;
         searchResults.style.gap = '15px';
     }
 
     cards.forEach(card => {
-        const div = document.createElement('div');
-        div.className = 'card-item-container';
+        const container = document.createElement('div');
+        container.className = 'card-container';
         
-        // Visual Card
-        const cardVisual = generateCardVisualHTML(card);
+        // 1. Generate the Visual Card
+        const visualHTML = generateCardVisualHTML(card);
         
-        // Add Buttons Logic
+        // 2. Generate the Deckbuilding Buttons
         const isZeroCost = String(card.cost) === '0';
-        const buttonsHTML = `
-            <div class="card-action-overlay">
-                ${isZeroCost ? `<button class="btn-add-starting" onclick="window.addCard('${card.title.replace(/'/g, "\\'")}', 'starting')">Add to Draw</button>` : ''}
-                <button class="btn-add-purchase" onclick="window.addCard('${card.title.replace(/'/g, "\\'")}', 'purchase')">Add to Purchase</button>
+        const buttonHTML = `
+            <div class="card-controls">
+                ${isZeroCost ? `<button onclick="window.addCardToDeck('${card.title.replace(/'/g, "\\'")}', 'starting')">Add to Draw</button>` : ''}
+                <button onclick="window.addCardToDeck('${card.title.replace(/'/g, "\\'")}', 'purchase')">Add to Purchase</button>
             </div>
         `;
         
-        div.innerHTML = cardVisual + buttonsHTML;
-        searchResults.appendChild(div);
+        container.innerHTML = visualHTML + buttonHTML;
+        searchResults.appendChild(container);
     });
 }
 
 export function renderDecks() {
-    if (!startingDeckList) getDOMRefs();
+    if (!startingDeckList) getDOMReferences();
+    
     const starting = store.get('startingDeck') || [];
     const purchase = store.get('purchaseDeck') || [];
 
-    startingDeckList.innerHTML = starting.map((t, i) => `
-        <div class="deck-row">
-            <span>${t}</span>
-            <div class="deck-row-btns">
-                <button onclick="window.moveCard(${i}, 'starting', 'purchase')">Move to Purchase</button>
-                <button onclick="window.removeCard(${i}, 'starting')">×</button>
+    // Render Starting Draw Deck (0 Cost only)
+    startingDeckList.innerHTML = starting.map((title, index) => `
+        <div class="deck-item">
+            <span>${title}</span>
+            <div class="deck-item-controls">
+                <button onclick="window.moveCard(${index}, 'starting', 'purchase')">Move to Purchase</button>
+                <button onclick="window.removeCard(${index}, 'starting')">×</button>
             </div>
         </div>
     `).join('');
 
-    purchaseDeckList.innerHTML = purchase.map((t, i) => {
-        const card = store.get('cardTitleCache')[t.toLowerCase()];
-        const isZero = card && String(card.cost) === '0';
+    // Render Purchase Deck
+    purchaseDeckList.innerHTML = purchase.map((title, index) => {
+        const cardData = store.get('cardTitleCache')[title.toLowerCase()];
+        const canMoveToDraw = cardData && String(cardData.cost) === '0';
         return `
-            <div class="deck-row">
-                <span>${t}</span>
-                <div class="deck-row-btns">
-                    ${isZero ? `<button onclick="window.moveCard(${i}, 'purchase', 'starting')">Move to Draw</button>` : ''}
-                    <button onclick="window.removeCard(${i}, 'purchase')">×</button>
+            <div class="deck-item">
+                <span>${title}</span>
+                <div class="deck-item-controls">
+                    ${canMoveToDraw ? `<button onclick="window.moveCard(${index}, 'purchase', 'starting')">Move to Draw</button>` : ''}
+                    <button onclick="window.removeCard(${index}, 'purchase')">×</button>
                 </div>
             </div>
         `;
     }).join('');
-    
-    // Update Counters
+
+    // Update Headers
     document.getElementById('startingDeckHeader').textContent = `Starting Draw Deck (${starting.length}/24)`;
     document.getElementById('purchaseDeckHeader').textContent = `Purchase Deck (${purchase.length})`;
 }
 
 export function renderPersonaDisplay() {
-    if (!personaDisplay) getDOMRefs();
-    if (!personaDisplay) return;
-
+    if (!personaDisplay) getDOMReferences();
     const w = store.get('selectedWrestler')?.title || 'None';
     const m = store.get('selectedManager')?.title || 'None';
     const cn = store.get('selectedCallName')?.title || 'None';
     const f = store.get('selectedFaction')?.title || 'None';
     
     personaDisplay.innerHTML = `
-        <div class="persona-info-box">
+        <div class="persona-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #eee; padding: 15px; border-radius: 8px;">
             <div><strong>Wrestler:</strong> ${w}</div>
             <div><strong>Manager:</strong> ${m}</div>
             <div><strong>Call Name:</strong> ${cn}</div>
@@ -104,10 +105,10 @@ export function renderPersonaDisplay() {
 }
 
 export function populatePersonaSelectors() {
-    const types = { wrestlerSelect: 'Wrestler', managerSelect: 'Manager', callNameSelect: 'Call Name', factionSelect: 'Faction' };
     const all = store.get('cardDatabase') || [];
+    const config = { wrestlerSelect: 'Wrestler', managerSelect: 'Manager', callNameSelect: 'Call Name', factionSelect: 'Faction' };
 
-    Object.entries(types).forEach(([id, type]) => {
+    Object.entries(config).forEach(([id, type]) => {
         const el = document.getElementById(id);
         if (el) {
             const filtered = all.filter(c => c.card_type === type);
@@ -118,17 +119,17 @@ export function populatePersonaSelectors() {
 }
 
 export function initializeUI() {
-    getDOMRefs();
+    getDOMReferences();
     store.subscribe('cardDatabase', () => { populatePersonaSelectors(); renderCardPool(); });
-    store.subscribe('numGridColumns', renderCardPool);
-    store.subscribe('currentViewMode', renderCardPool);
     store.subscribe('startingDeck', renderDecks);
     store.subscribe('purchaseDeck', renderDecks);
+    store.subscribe('numGridColumns', renderCardPool);
+    store.subscribe('currentViewMode', renderCardPool);
     
     ['selectedWrestler', 'selectedManager', 'selectedCallName', 'selectedFaction'].forEach(key => {
         store.subscribe(key, () => {
             renderPersonaDisplay();
-            renderCardPool(); // Re-render pool to show/hide Kit cards
+            renderCardPool(); // Kit cards rely on persona selection
         });
     });
 

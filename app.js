@@ -3,29 +3,55 @@ import { store } from './store.js';
 import { loadGameData } from './data-loader.js';
 import { initializeUI, populatePersonaSelectors, renderPersonaDisplay } from './ui.js';
 import { initializeAllEventListeners } from './listeners.js';
-import { exportAllCardsAsImages } from './master-export.js';
 import { generatePlainTextDeck, generateLackeyCCGDeck } from './exporter.js';
+import { exportAllCardsAsImages } from './master-export.js';
 
-// Global helpers for HTML buttons
-window.addCard = (title, type) => {
-    const list = [...store.get(type === 'starting' ? 'startingDeck' : 'purchaseDeck')];
-    list.push(title);
-    store.set(type === 'starting' ? 'startingDeck' : 'purchaseDeck', list);
+// --- GLOBAL DECK FUNCTIONS ---
+window.addCardToDeck = (title, type) => {
+    const key = type === 'starting' ? 'startingDeck' : 'purchaseDeck';
+    const currentList = [...store.get(key)];
+    currentList.push(title);
+    store.set(key, currentList);
 };
 
 window.removeCard = (index, type) => {
-    const list = [...store.get(type === 'starting' ? 'startingDeck' : 'purchaseDeck')];
-    list.splice(index, 1);
-    store.set(type === 'starting' ? 'startingDeck' : 'purchaseDeck', list);
+    const key = type === 'starting' ? 'startingDeck' : 'purchaseDeck';
+    const currentList = [...store.get(key)];
+    currentList.splice(index, 1);
+    store.set(key, currentList);
 };
 
 window.moveCard = (index, fromType, toType) => {
-    const fromList = [...store.get(fromType === 'starting' ? 'startingDeck' : 'purchaseDeck')];
-    const toList = [...store.get(toType === 'starting' ? 'startingDeck' : 'purchaseDeck')];
-    const [card] = fromList.splice(index, 1);
-    toList.push(card);
-    store.set(fromType === 'starting' ? 'startingDeck' : 'purchaseDeck', fromList);
-    store.set(toType === 'starting' ? 'startingDeck' : 'purchaseDeck', toList);
+    const fromKey = fromType === 'starting' ? 'startingDeck' : 'purchaseDeck';
+    const toKey = toType === 'starting' ? 'startingDeck' : 'purchaseDeck';
+    
+    const fromList = [...store.get(fromKey)];
+    const toList = [...store.get(toKey)];
+    
+    const [cardTitle] = fromList.splice(index, 1);
+    toList.push(cardTitle);
+    
+    store.set(fromKey, fromList);
+    store.set(toKey, toList);
+};
+
+// --- GLOBAL EXPORT FUNCTIONS ---
+window.exportTxtDeck = () => {
+    const content = generatePlainTextDeck();
+    const blob = new Blob([content], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'AEW_Deck.txt';
+    a.click();
+};
+
+window.exportLackeyDeck = () => {
+    const content = generateLackeyCCGDeck();
+    const blob = new Blob([content], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'AEW_Lackey_Deck.txt';
+    a.click();
 };
 
 async function initApp() {
@@ -33,22 +59,14 @@ async function initApp() {
         initializeUI();
         initializeAllEventListeners();
 
-        // Bind Export Buttons
+        // Bind Export Buttons in HTML
         document.getElementById('exportAllCards')?.addEventListener('click', exportAllCardsAsImages);
-        document.getElementById('exportAsImageBtn')?.addEventListener('click', () => {
-             // Logic for single image export via exporter.js
-        });
         
-        // Add Txt/Lackey Buttons to Action Panel in index.html, then bind:
-        document.getElementById('exportTxtBtn')?.addEventListener('click', () => {
-            const blob = new Blob([generatePlainTextDeck()], {type: 'text/plain'});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='deck.txt'; a.click();
-        });
-
         const dataLoaded = await loadGameData();
         if (dataLoaded) {
             populatePersonaSelectors();
             renderPersonaDisplay();
+            console.log("App Ready with Exports and Deckbuilding.");
         }
     } catch (e) {
         console.error("Init Error:", e);

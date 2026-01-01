@@ -7,19 +7,17 @@ export function getFilteredAndSortedCardPool() {
     
     const wrestler = store.get('selectedWrestler')?.title;
     const manager = store.get('selectedManager')?.title;
-    const personaTitles = [wrestler, manager].filter(Boolean);
+    const selectedPersonas = [wrestler, manager].filter(Boolean);
 
     return allCards.filter(card => {
-        // 1. Filter out Persona cards (Wrestler/Manager/etc) from the main pool
+        // Hide Persona cards from pool
         if (['Wrestler', 'Manager', 'Call Name', 'Faction'].includes(card.card_type)) return false;
 
-        // 2. Kit Card Logic: If it's a kit card, only show if signature matches persona
+        // Kit Card Logic: Only show if signature_for matches selected Wrestler/Manager
         if (card.wrestler_kit === 'TRUE') {
-            const sig = card.signature_for || '';
-            if (!personaTitles.includes(sig)) return false;
+            if (!selectedPersonas.includes(card.signature_for)) return false;
         }
 
-        // 3. Search text
         const titleMatch = card.title.toLowerCase().includes(search);
         const textMatch = card.text_box?.raw_text?.toLowerCase().includes(search);
         

@@ -17,9 +17,9 @@
                 <h2>Card Pool</h2>
                 <div class="view-controls-container">
                     <div id="gridSizeControls" class="grid-size-controls">
-                        <label>Grid Columns:</label>
+                        <label>Grid:</label>
                         <button data-columns="2">2</button>
-                        <button data-columns="3">3</button>
+                        <button data-columns="3" class="active">3</button>
                         <button data-columns="4">4</button>
                     </div>
                     <button id="viewModeToggle">Switch to List View</button>
@@ -37,7 +37,8 @@
 
         <div class="deck-panel">
             <h2>Your Persona</h2>
-            <div id="personaDisplay"></div>
+            <div id="personaDisplay">
+                </div>
             
             <div class="persona-selection">
                 <select id="wrestlerSelect"><option value="">-- Select Wrestler --</option></select>
@@ -47,8 +48,9 @@
             </div>
 
             <div class="deck-section">
-                <h3 id="startingDeckHeader">Starting Deck (0/24)</h3>
-                <div id="startingDeckList" class="deck-list"></div>
+                <h3 id="startingDeckHeader">Starting Draw Deck (0/24)</h3>
+                <div id="startingDeckList" class="deck-list">
+                    </div>
             </div>
 
             <div class="deck-section">
@@ -57,14 +59,18 @@
             </div>
 
             <div class="action-buttons">
-                <button id="exportAsImageBtn">Export as Image</button>
-                <button id="clearDeck">Clear Deck</button>
+                <button id="exportAsImageBtn">Export Deck Image</button>
+                <button onclick="window.exportTxtDeck()">Export .txt</button>
+                <button onclick="window.exportLackeyDeck()">Export Lackey</button>
+                <button id="exportAllCards">Export All as Images</button>
+                <button id="clearDeck" class="danger">Clear Deck</button>
             </div>
         </div>
     </main>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
     <script type="module" src="app.js"></script>
 </body>
 </html>
