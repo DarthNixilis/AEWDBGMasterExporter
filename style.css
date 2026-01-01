@@ -71,7 +71,7 @@ button.btn-purchase { background-color: var(--purchase-color); color: white; bor
 #exportAsImageBtn { background-color: var(--success-color); color: white; }
 #exportAllCards { background-color: #20c997; color: white; }
 #exportAllCards:hover { background-color: #1aa179; }
-.persona-display-container { border: 1px solid var(--border-color); border-radius: 4px; padding: 10px; margin-bottom: 15px; display: none; }
+.persona-display-container { border: 1px solid var(--border-color); border-radius: 4px; padding: 10px; margin-bottom: 15px; display: block; }
 .persona-display-container h3 { margin-top: 0; font-size: 1.1em; }
 .persona-card-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .persona-card-item { background-color: #f8f9fa; border: 1px solid var(--border-color); border-radius: 4px; padding: 5px 10px; cursor: pointer; font-size: 0.9em; }
@@ -81,13 +81,12 @@ button.btn-purchase { background-color: var(--purchase-color); color: white; bor
 .modal-close-button { position: absolute; top: 10px; right: 15px; font-size: 1.5rem; font-weight: bold; cursor: pointer; }
 
 /* --- THIS IS THE GLOBAL FIX FOR ALL CARD IMAGES --- */
-/* This targets any image that is inside a container that also holds our placeholder logic */
 #modalCardContent img,
 .card-visual img {
     width: 100%;
     height: auto;
     display: block;
-    max-width: 100%; /* Redundant but safe */
+    max-width: 100%;
 }
 /* -------------------------------------------------- */
 
