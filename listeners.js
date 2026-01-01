@@ -3,7 +3,20 @@ import { store } from './store.js';
 import * as ui from './ui.js';
 
 export function initializeAllEventListeners() {
-    // View toggle
+    // 1. Grid Size Buttons
+    const gridButtons = document.querySelectorAll('#gridSizeControls button');
+    gridButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const cols = parseInt(btn.getAttribute('data-columns'));
+            if (cols) {
+                store.set('numGridColumns', cols);
+                gridButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            }
+        });
+    });
+
+    // 2. View Mode Toggle
     const viewToggle = document.getElementById('viewModeToggle');
     if (viewToggle) {
         viewToggle.addEventListener('click', () => {
@@ -14,59 +27,24 @@ export function initializeAllEventListeners() {
         });
     }
 
-    // Grid buttons
-    const gridButtons = document.querySelectorAll('#gridSizeControls button');
-    gridButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const cols = parseInt(btn.getAttribute('data-columns'));
-            if (cols) {
-                store.set('numGridColumns', cols);
-            }
-        });
+    // 3. Persona Dropdowns
+    ['wrestlerSelect', 'managerSelect', 'callNameSelect', 'factionSelect'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('change', (e) => {
+                const key = 'selected' + id.replace('Select', '').charAt(0).toUpperCase() + id.replace('Select', '').slice(1);
+                const card = store.get('cardTitleCache')[e.target.value.toLowerCase()];
+                store.set(key, card || null);
+            });
+        }
     });
 
-    // Persona selectors
-    const wSelect = document.getElementById('wrestlerSelect');
-    const mSelect = document.getElementById('managerSelect');
-    const cnSelect = document.getElementById('callNameSelect');
-    const fSelect = document.getElementById('factionSelect');
-    
-    if (wSelect) {
-        wSelect.addEventListener('change', (e) => {
-            const val = e.target.value.toLowerCase();
-            const card = store.get('cardTitleCache')[val];
-            store.set('selectedWrestler', card || null);
-        });
-    }
-    if (mSelect) {
-        mSelect.addEventListener('change', (e) => {
-            const val = e.target.value.toLowerCase();
-            const card = store.get('cardTitleCache')[val];
-            store.set('selectedManager', card || null);
-        });
-    }
-    if (cnSelect) {
-        cnSelect.addEventListener('change', (e) => {
-            const val = e.target.value.toLowerCase();
-            const card = store.get('cardTitleCache')[val];
-            store.set('selectedCallName', card || null);
-        });
-    }
-    if (fSelect) {
-        fSelect.addEventListener('change', (e) => {
-            const val = e.target.value.toLowerCase();
-            const card = store.get('cardTitleCache')[val];
-            store.set('selectedFaction', card || null);
-        });
-    }
-
-    // Search
+    // 4. Search
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
-        searchInput.addEventListener('input', () => {
-            ui.renderCardPool();
-        });
+        searchInput.addEventListener('input', () => ui.renderCardPool());
     }
 }
 
 export const initializeListeners = initializeAllEventListeners;
+
