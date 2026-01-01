@@ -14,7 +14,7 @@ async function initApp() {
         const dataLoaded = await loadGameData();
         if (!dataLoaded) throw new Error("Database failed to load.");
         
-        // 3. Force a second update now that data is present
+        // 3. Force updates now that data is present
         populatePersonaSelectors();
         renderPersonaDisplay();
         
@@ -27,4 +27,3 @@ async function initApp() {
 }
 
 initApp();
-

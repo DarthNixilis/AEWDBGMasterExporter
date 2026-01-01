@@ -3,13 +3,7 @@ import { store } from './store.js';
 import * as ui from './ui.js';
 
 export function initializeAllEventListeners() {
-    // 1. Search
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput) {
-        searchInput.addEventListener('input', () => ui.renderCardPool());
-    }
-
-    // 2. View Toggle
+    // View toggle
     const viewToggle = document.getElementById('viewModeToggle');
     if (viewToggle) {
         viewToggle.addEventListener('click', () => {
@@ -20,21 +14,18 @@ export function initializeAllEventListeners() {
         });
     }
 
-    // 3. Grid Buttons (2, 3, 4)
+    // Grid buttons
     const gridButtons = document.querySelectorAll('#gridSizeControls button');
     gridButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const cols = parseInt(btn.getAttribute('data-columns'));
             if (cols) {
                 store.set('numGridColumns', cols);
-                // Visual feedback
-                gridButtons.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
             }
         });
     });
 
-    // 4. Persona Selectors
+    // Persona selectors
     const wSelect = document.getElementById('wrestlerSelect');
     const mSelect = document.getElementById('managerSelect');
     const cnSelect = document.getElementById('callNameSelect');
@@ -66,6 +57,14 @@ export function initializeAllEventListeners() {
             const val = e.target.value.toLowerCase();
             const card = store.get('cardTitleCache')[val];
             store.set('selectedFaction', card || null);
+        });
+    }
+
+    // Search
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            ui.renderCardPool();
         });
     }
 }
