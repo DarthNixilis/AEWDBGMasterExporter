@@ -9,27 +9,33 @@ export function initializeAllEventListeners() {
         searchInput.addEventListener('input', () => ui.renderCardPool());
     }
 
-    // 2. View Mode Toggle
+    // 2. View Mode Toggle (Grid vs List)
     const viewToggle = document.getElementById('viewModeToggle');
     if (viewToggle) {
         viewToggle.addEventListener('click', () => {
             const current = store.get('currentViewMode');
-            store.set('currentViewMode', current === 'grid' ? 'list' : 'grid');
+            const next = current === 'grid' ? 'list' : 'grid';
+            store.set('currentViewMode', next);
+            viewToggle.textContent = next === 'grid' ? 'Switch to List View' : 'Switch to Grid View';
         });
     }
 
-    // 3. Grid Column Buttons
+    // 3. Grid Column Buttons (2, 3, 4)
     const gridButtons = document.querySelectorAll('#gridSizeControls button');
     gridButtons.forEach(btn => {
         btn.addEventListener('click', () => {
-            const cols = parseInt(btn.dataset.columns);
-            store.set('numGridColumns', cols);
-            gridButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+            const cols = parseInt(btn.getAttribute('data-columns'));
+            if (cols) {
+                store.set('numGridColumns', cols);
+                // Highlight active button
+                gridButtons.forEach(b => b.style.background = '');
+                btn.style.background = '#007bff';
+                btn.style.color = 'white';
+            }
         });
     });
 
-    // 4. Persona Selectors
+    // 4. Wrestler/Manager Selection
     const wSelect = document.getElementById('wrestlerSelect');
     const mSelect = document.getElementById('managerSelect');
     
@@ -46,7 +52,7 @@ export function initializeAllEventListeners() {
         });
     }
 
-    console.log("EventListeners attached.");
+    console.log("Event Listeners Wired Up");
 }
 
 export const initializeListeners = initializeAllEventListeners;

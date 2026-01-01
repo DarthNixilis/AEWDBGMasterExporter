@@ -7,15 +7,16 @@ import { initializeAllEventListeners } from './listeners.js';
 async function initApp() {
     try {
         const dataLoaded = await loadGameData();
-        if (!dataLoaded) throw new Error("Data fail");
+        if (!dataLoaded) throw new Error("Card database failed to load.");
         
         initializeUI();
         initializeAllEventListeners();
         
         store.set('initialized', true);
+        console.log("AEW App Ready");
     } catch (e) {
-        console.error(e);
-        document.body.innerHTML = `<div style="padding:20px; color:red;">Error: ${e.message}</div>`;
+        console.error("Init Error:", e);
+        document.body.innerHTML = `<div style="color:red; padding:20px;">Startup Error: ${e.message}</div>`;
     }
 }
 
