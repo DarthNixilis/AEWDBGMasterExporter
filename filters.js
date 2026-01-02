@@ -5,23 +5,32 @@ export function getFilteredAndSortedCardPool() {
     const allCards = store.get('cardDatabase') || [];
     const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
     
-    const wrestler = store.get('selectedWrestler')?.title;
-    const manager = store.get('selectedManager')?.title;
-    const selectedPersonas = [wrestler, manager].filter(Boolean);
+    const wrestler = store.get('selectedWrestler');
+    const manager = store.get('selectedManager');
+    
+    // Kit Logic: We want cards where 'Signature For' matches current persona
+    const activeLogos = [
+        wrestler ? wrestler.title.toLowerCase() : null,
+        manager ? manager.title.toLowerCase() : null
+    ].filter(Boolean);
 
     return allCards.filter(card => {
-        // Hide Persona cards from pool
-        if (['Wrestler', 'Manager', 'Call Name', 'Faction'].includes(card.card_type)) return false;
+        // 1. Hide Persona cards from the pool
+        const type = card.card_type;
+        if (['Wrestler', 'Manager', 'Call Name', 'Faction'].includes(type)) return false;
 
-        // Kit Card Logic: Only show if signature_for matches selected Wrestler/Manager
-        if (card.wrestler_kit === 'TRUE') {
-            if (!selectedPersonas.includes(card.signature_for)) return false;
+        // 2. Kit Check
+        if (store.isKitCard(card)) {
+            const sigFor = (card['Signature For'] || '').toLowerCase();
+            // Match "Jon Moxley" or "Jon Moxley Wrestler"
+            const match = activeLogos.some(logo => sigFor.includes(logo));
+            if (!match) return false;
         }
 
-        const titleMatch = card.title.toLowerCase().includes(search);
-        const textMatch = card.text_box?.raw_text?.toLowerCase().includes(search);
-        
-        return titleMatch || textMatch;
+        // 3. Search text
+        const title = (card.title || '').toLowerCase();
+        const text = (card.game_text || '').toLowerCase();
+        return title.includes(search) || text.includes(search);
     }).sort((a, b) => a.title.localeCompare(b.title));
 }
 
