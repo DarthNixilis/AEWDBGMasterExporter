@@ -25,6 +25,7 @@ async function init() {
   renderDeck([])
 
   function onCardClicked(card) {
+    // Persona selection
     if (card.rules?.isPersona) {
       deck.clear()
       deck.addCard(card)
@@ -33,10 +34,7 @@ async function init() {
 
       renderPersona(card)
 
-      const startingCards = autoCards.filter(
-        c => c.rules?.isStartingCard
-      )
-
+      const startingCards = autoCards.filter(c => c.rules?.isStartingCard)
       startingCards.forEach(c => deck.addCard(c))
 
       renderStartingCards(startingCards)
@@ -44,8 +42,14 @@ async function init() {
       return
     }
 
+    // Normal add attempt
     deck.addCard(card)
     renderDeck(deck.getCards())
+
+    const validation = deck.validate()
+    if (!validation.valid) {
+      console.warn("Deck validation errors:", validation.errors)
+    }
   }
 }
 
