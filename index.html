@@ -1,64 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AEW TCG Deck Constructor</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>AEW TCG Deck Builder</title>
+
+  <link rel="stylesheet" href="styles.css" />
+
+  <style>
+    /* Minimal safety styling so layout is usable even if CSS breaks */
+
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 1rem;
+      background: #111;
+      color: #eee;
+    }
+
+    h3 {
+      margin-top: 2rem;
+      border-bottom: 1px solid #444;
+      padding-bottom: 0.25rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+
+    .card {
+      background: #1e1e1e;
+      border: 1px solid #333;
+      padding: 0.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .card:hover {
+      background: #2a2a2a;
+    }
+  </style>
 </head>
+
 <body>
-    <header><h1>AEW TCG Deck Constructor</h1></header>
 
-    <main class="container">
-        <div class="search-panel">
-            <div class="panel-header">
-                <h2>Card Pool</h2>
-                <div class="view-controls-container">
-                    <div id="gridSizeControls" class="grid-size-controls">
-                        <button data-columns="2">2</button>
-                        <button data-columns="3" class="active">3</button>
-                        <button data-columns="4">4</button>
-                    </div>
-                    <button id="viewModeToggle">Switch to List View</button>
-                </div>
-            </div>
-            <div class="filter-controls">
-                <input type="text" id="searchInput" placeholder="Search cards...">
-            </div>
-            <div id="searchResults" class="card-list grid-view"></div>
-        </div>
+  <h2>Persona</h2>
+  <div id="persona-area" class="grid"></div>
 
-        <div class="deck-panel">
-            <h2>Persona</h2>
-            <div id="personaDisplay"></div>
-            <div class="persona-selection">
-                <select id="wrestlerSelect"></select>
-                <select id="managerSelect"></select>
-                <select id="callNameSelect"></select>
-                <select id="factionSelect"></select>
-            </div>
+  <h3>Starting Cards</h3>
+  <div id="starting-cards" class="grid"></div>
 
-            <div class="deck-section">
-                <h3 id="startingDeckHeader">Draw Deck (0/24)</h3>
-                <div id="startingDeckList" class="deck-list list-view"></div>
-            </div>
+  <h3>Card Pool</h3>
+  <div id="card-pool" class="grid"></div>
 
-            <div class="deck-section">
-                <h3 id="purchaseDeckHeader">Purchase Deck (0)</h3>
-                <div id="purchaseDeckList" class="deck-list list-view"></div>
-            </div>
+  <h3>Deck</h3>
+  <div id="deck" class="grid"></div>
 
-            <div class="action-buttons">
-                <button onclick="window.exportTxtDeck()">Export .txt</button>
-                <button onclick="window.exportLackeyDeck()">Export Lackey</button>
-                <button id="clearDeck" class="danger">Clear Deck</button>
-            </div>
-        </div>
-    </main>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script type="module" src="app.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
-
