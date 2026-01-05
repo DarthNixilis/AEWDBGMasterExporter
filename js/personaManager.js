@@ -1,28 +1,79 @@
-// js/personaManager.js
+import { ui } from "./ui.js";
 
-export class PersonaManager {
-  constructor(allCards) {
-    this.allCards = allCards
-    this.selectedPersona = null
-  }
+function isPersonaCard(card) {
+  const t = (card.type ?? "").toLowerCase().trim();
+  // Persona types you care about:
+  return t === "wrestler" || t === "manager";
+}
 
-  selectPersona(personaCard) {
-    if (!personaCard.rules?.isPersona) {
-      console.warn("Tried to select non-persona:", personaCard)
-      return []
+function mount(container, cards, onChange) {
+  const personas = cards
+    .filter(isPersonaCard)
+    .map((c) => ({
+      display: c.displayName || c.name,
+      key: (c.displayName || c.name).toLowerCase(),
+      card: c,
+    }))
+    .sort((a, b) => a.display.localeCompare(b.display));
+
+  container.innerHTML = `
+    <div style="font-weight:800; font-size:18px;">Persona</div>
+    <div class="hint">
+      Pick a Persona. Their starter cards (including Kits) auto-load using the <b>Starting For</b> column.<br>
+      Card Pool never shows any card that has <b>Starting For</b> filled.
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="row">
+      <label for="personaSelect">Choose Persona:</label>
+      <select id="personaSelect">
+        <option value="">(none selected)</option>
+        ${personas.map((p) => `<option value="${escapeHtml(p.key)}">${escapeHtml(p.display)}</option>`).join("")}
+      </select>
+      <button id="personaClearBtn">Clear Persona</button>
+    </div>
+
+    <div class="hint">
+      If a Persona isn’t showing up, make sure its <b>Type</b> column is exactly “Wrestler” or “Manager”.
+    </div>
+  `;
+
+  const select = container.querySelector("#personaSelect");
+  const clearBtn = container.querySelector("#personaClearBtn");
+
+  function emitSelection() {
+    const val = (select.value ?? "").trim();
+    if (!val) {
+      onChange(null);
+      return;
     }
-
-    this.selectedPersona = personaCard
-
-    return this.getAutoCards()
+    const found = personas.find((p) => p.key === val);
+    if (!found) {
+      ui.toast("Persona missing", "Could not resolve selected Persona in list.", "warn");
+      onChange(null);
+      return;
+    }
+    onChange(found.card);
   }
 
-  clearPersona() {
-    this.selectedPersona = null
-    return []
-  }
+  select.addEventListener("change", emitSelection);
+  clearBtn.addEventListener("click", () => {
+    select.value = "";
+    onChange(null);
+  });
 
-  getAutoCards() {
-    if (!this.selectedPersona) return []
+  // Default: none
+  onChange(null);
+}
 
-    return this
+function escapeHtml(s) {
+  return (s ?? "").toString()
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+export const personaManager = { mount };
