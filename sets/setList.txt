@@ -1,2 +1,2 @@
-sets/Core.tsv
-sets/Advanced.tsv
+Core.tsv
+Advanced.tsv
