@@ -1,91 +1,173 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AEW TCG Deck Builder</title>
-  <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background:#0b0b0f; color:#eaeaf2; }
-    header { padding: 12px 14px; border-bottom: 1px solid #2a2a36; position: sticky; top: 0; background:#0b0b0f; z-index: 5; }
-    header h1 { margin: 0; font-size: 16px; letter-spacing: .3px; }
-    nav { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-    nav button { background:#1b1b25; color:#eaeaf2; border:1px solid #2a2a36; padding:8px 10px; border-radius: 10px; cursor:pointer; }
-    nav button.active { background:#2a215a; border-color:#4c3cff; }
-    main { padding: 14px; }
-    .panel { display:none; }
-    .panel.active { display:block; }
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>AEW TCG Deck Builder</title>
+    <link rel="stylesheet" href="./style.css" />
+    <style>
+      /* Minimal safety styling if style.css is missing */
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+      }
+      header {
+        padding: 12px;
+        border-bottom: 1px solid #ddd;
+        position: sticky;
+        top: 0;
+        background: #fff;
+        z-index: 10;
+      }
+      .tabs {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .tabs button {
+        padding: 8px 10px;
+        border: 1px solid #ccc;
+        background: #f6f6f6;
+        border-radius: 8px;
+      }
+      .tabs button.active {
+        background: #111;
+        color: #fff;
+        border-color: #111;
+      }
+      main {
+        padding: 12px;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      select {
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+      }
+      #status {
+        font-size: 14px;
+        opacity: 0.85;
+        margin-top: 8px;
+      }
+      .panel {
+        display: none;
+      }
+      .panel.active {
+        display: block;
+      }
+      .hint {
+        font-size: 13px;
+        opacity: 0.8;
+        margin: 8px 0 14px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 10px;
+      }
+      .card {
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        padding: 10px;
+        background: #fff;
+      }
+      .card h3 {
+        margin: 0 0 6px;
+        font-size: 16px;
+      }
+      .meta {
+        font-size: 12px;
+        opacity: 0.85;
+        margin-bottom: 6px;
+      }
+      .text {
+        font-size: 13px;
+        white-space: pre-wrap;
+      }
+      .toolbar {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin: 10px 0;
+      }
+      input[type="search"] {
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 10px;
+        width: min(420px, 100%);
+      }
+    </style>
+  </head>
 
-    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
-    .card { border:1px solid #2a2a36; background:#13131b; border-radius: 12px; padding: 10px; }
-    .card h3 { margin: 0 0 6px; font-size: 14px; }
-    .muted { color:#b8b8cc; font-size: 12px; }
-
-    .row { display:flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
-    select, input { background:#0f0f16; color:#eaeaf2; border:1px solid #2a2a36; padding: 10px; border-radius: 10px; }
-    input { flex: 1; min-width: 220px; }
-
-    .banner { padding:10px 12px; border:1px solid #2a2a36; background:#10101a; border-radius: 12px; margin-bottom: 12px; }
-    .banner strong { color:#9affc6; }
-    .warning { color:#ffd37a; }
-  </style>
-</head>
-
-<body>
-  <header>
-    <h1>AEW TCG Deck Builder</h1>
-    <nav>
-      <button data-tab="persona" class="active">Persona</button>
-      <button data-tab="cardpool">Card Pool</button>
-      <button data-tab="deck">Deck</button>
-      <button data-tab="starting">Starting</button>
-    </nav>
-  </header>
-
-  <main>
-    <div id="status" class="banner">
-      <div><strong>Status:</strong> Loading…</div>
-      <div class="muted">If something breaks, you should see a popup error.</div>
-    </div>
-
-    <section id="panel-persona" class="panel active">
-      <div class="row">
-        <label class="muted">Choose Persona:</label>
-        <select id="personaSelect"></select>
+  <body>
+    <header>
+      <div class="tabs" id="tabs">
+        <button data-tab="persona" class="active">Persona</button>
+        <button data-tab="cardpool">Card Pool</button>
+        <button data-tab="deck">Deck</button>
+        <button data-tab="starting">Starting</button>
       </div>
-      <div class="banner">
-        <div><strong>Kit auto-load:</strong> When you pick a Persona, their Kit cards are auto-added (but Kit cards never appear in Card Pool).</div>
-        <div class="muted">Match rule: Kit card “Wrestler Logo” contains Persona name.</div>
-      </div>
-      <div id="personaCards" class="grid"></div>
-    </section>
 
-    <section id="panel-cardpool" class="panel">
-      <div class="row">
-        <input id="searchInput" type="text" placeholder="Search card pool…" />
-      </div>
-      <div class="banner">
-        <div><strong>Card Pool:</strong> Shows non-Kit cards only.</div>
-        <div class="muted warning">If this is empty, your AEW.txt didn’t load or parsing failed.</div>
-      </div>
-      <div id="cardPoolGrid" class="grid"></div>
-    </section>
+      <div id="status">Status: Loading…</div>
+    </header>
 
-    <section id="panel-deck" class="panel">
-      <div class="banner">
-        <div><strong>Deck:</strong> Placeholder for now. We’ll wire validation + export next.</div>
-      </div>
-      <div id="deckArea" class="grid"></div>
-    </section>
+    <main>
+      <section id="panel-persona" class="panel active">
+        <div class="hint">
+          Pick a Persona. Their Starter cards (including Kit cards) will auto-load using
+          the <b>Starting For</b> column. Kit cards will never appear in Card Pool.
+        </div>
 
-    <section id="panel-starting" class="panel">
-      <div class="banner">
-        <div><strong>Starting Cards:</strong> Grid view of Persona + attached Kit.</div>
-      </div>
-      <div id="startingGrid" class="grid"></div>
-    </section>
-  </main>
+        <div class="row">
+          <label for="personaSelect"><b>Choose Persona:</b></label>
+          <select id="personaSelect"></select>
+        </div>
 
-  <!-- ONE entrypoint. If you have other script tags, remove them. -->
-  <script type="module" src="./js/main.js"></script>
-</body>
+        <div class="toolbar">
+          <button id="clearPersonaBtn" type="button">Clear Persona</button>
+        </div>
+
+        <div id="personaGrid" class="grid"></div>
+      </section>
+
+      <section id="panel-cardpool" class="panel">
+        <div class="hint">
+          Card Pool excludes any card that has <b>Starting For</b> filled in (those are starters/kit/etc).
+          Also excludes Kits even if you forget and label them weird.
+        </div>
+
+        <div class="toolbar">
+          <input id="poolSearch" type="search" placeholder="Search card pool…" />
+        </div>
+
+        <div id="cardPoolGrid" class="grid"></div>
+      </section>
+
+      <section id="panel-deck" class="panel">
+        <div class="hint">
+          Deck tab is next after persona+starting are stable. We’ll wire validation + export here.
+        </div>
+        <div id="deckArea">Deck: (coming next)</div>
+      </section>
+
+      <section id="panel-starting" class="panel">
+        <div class="hint">
+          Shows the selected Persona + all their starter cards in a grid. Default: none selected.
+        </div>
+        <div id="startingGrid" class="grid"></div>
+      </section>
+    </main>
+
+    <script type="module" src="./js/main.js"></script>
+  </body>
 </html>
