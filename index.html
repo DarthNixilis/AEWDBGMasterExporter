@@ -1,65 +1,91 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>AEW TCG Deck Builder</title>
-
-  <link rel="stylesheet" href="styles.css" />
-
   <style>
-    /* Minimal safety styling so layout is usable even if CSS breaks */
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background:#0b0b0f; color:#eaeaf2; }
+    header { padding: 12px 14px; border-bottom: 1px solid #2a2a36; position: sticky; top: 0; background:#0b0b0f; z-index: 5; }
+    header h1 { margin: 0; font-size: 16px; letter-spacing: .3px; }
+    nav { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    nav button { background:#1b1b25; color:#eaeaf2; border:1px solid #2a2a36; padding:8px 10px; border-radius: 10px; cursor:pointer; }
+    nav button.active { background:#2a215a; border-color:#4c3cff; }
+    main { padding: 14px; }
+    .panel { display:none; }
+    .panel.active { display:block; }
 
-    body {
-      font-family: sans-serif;
-      margin: 0;
-      padding: 1rem;
-      background: #111;
-      color: #eee;
-    }
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+    .card { border:1px solid #2a2a36; background:#13131b; border-radius: 12px; padding: 10px; }
+    .card h3 { margin: 0 0 6px; font-size: 14px; }
+    .muted { color:#b8b8cc; font-size: 12px; }
 
-    h3 {
-      margin-top: 2rem;
-      border-bottom: 1px solid #444;
-      padding-bottom: 0.25rem;
-    }
+    .row { display:flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    select, input { background:#0f0f16; color:#eaeaf2; border:1px solid #2a2a36; padding: 10px; border-radius: 10px; }
+    input { flex: 1; min-width: 220px; }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-      gap: 0.75rem;
-      margin-top: 0.75rem;
-    }
-
-    .card {
-      background: #1e1e1e;
-      border: 1px solid #333;
-      padding: 0.5rem;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-
-    .card:hover {
-      background: #2a2a2a;
-    }
+    .banner { padding:10px 12px; border:1px solid #2a2a36; background:#10101a; border-radius: 12px; margin-bottom: 12px; }
+    .banner strong { color:#9affc6; }
+    .warning { color:#ffd37a; }
   </style>
 </head>
 
 <body>
+  <header>
+    <h1>AEW TCG Deck Builder</h1>
+    <nav>
+      <button data-tab="persona" class="active">Persona</button>
+      <button data-tab="cardpool">Card Pool</button>
+      <button data-tab="deck">Deck</button>
+      <button data-tab="starting">Starting</button>
+    </nav>
+  </header>
 
-  <h2>Persona</h2>
-  <div id="persona-area" class="grid"></div>
+  <main>
+    <div id="status" class="banner">
+      <div><strong>Status:</strong> Loading…</div>
+      <div class="muted">If something breaks, you should see a popup error.</div>
+    </div>
 
-  <h3>Starting Cards</h3>
-  <div id="starting-cards" class="grid"></div>
+    <section id="panel-persona" class="panel active">
+      <div class="row">
+        <label class="muted">Choose Persona:</label>
+        <select id="personaSelect"></select>
+      </div>
+      <div class="banner">
+        <div><strong>Kit auto-load:</strong> When you pick a Persona, their Kit cards are auto-added (but Kit cards never appear in Card Pool).</div>
+        <div class="muted">Match rule: Kit card “Wrestler Logo” contains Persona name.</div>
+      </div>
+      <div id="personaCards" class="grid"></div>
+    </section>
 
-  <h3>Card Pool</h3>
-  <div id="card-pool" class="grid"></div>
+    <section id="panel-cardpool" class="panel">
+      <div class="row">
+        <input id="searchInput" type="text" placeholder="Search card pool…" />
+      </div>
+      <div class="banner">
+        <div><strong>Card Pool:</strong> Shows non-Kit cards only.</div>
+        <div class="muted warning">If this is empty, your AEW.txt didn’t load or parsing failed.</div>
+      </div>
+      <div id="cardPoolGrid" class="grid"></div>
+    </section>
 
-  <h3>Deck</h3>
-  <div id="deck" class="grid"></div>
+    <section id="panel-deck" class="panel">
+      <div class="banner">
+        <div><strong>Deck:</strong> Placeholder for now. We’ll wire validation + export next.</div>
+      </div>
+      <div id="deckArea" class="grid"></div>
+    </section>
 
-  <script type="module" src="js/main.js"></script>
+    <section id="panel-starting" class="panel">
+      <div class="banner">
+        <div><strong>Starting Cards:</strong> Grid view of Persona + attached Kit.</div>
+      </div>
+      <div id="startingGrid" class="grid"></div>
+    </section>
+  </main>
+
+  <!-- ONE entrypoint. If you have other script tags, remove them. -->
+  <script type="module" src="./js/main.js"></script>
 </body>
 </html>
