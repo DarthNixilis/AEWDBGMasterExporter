@@ -3,43 +3,15 @@ import { loadAllData } from "./data-loader.js";
 
 function norm(s) { return String(s ?? "").trim(); }
 function getField(row, ...names) {
-  for (const n of names) {
-    if (Object.prototype.hasOwnProperty.call(row, n)) return row[n];
-  }
+  for (const n of names) if (Object.prototype.hasOwnProperty.call(row, n)) return row[n];
   return "";
 }
 
-function computeCardName(row) {
-  return norm(getField(row, "Card Name", "Name", "Title"));
-}
-function computeType(row) { return norm(getField(row, "Type")); }
-function computeSet(row) { return norm(getField(row, "Set")); }
-function computeCost(row) { return norm(getField(row, "Cost")); }
-function computeMomentum(row) { return norm(getField(row, "Momentum")); }
-
-function renderCardTile(row) {
-  const name = computeCardName(row);
-  const type = computeType(row);
-  const set = computeSet(row);
-  const cost = computeCost(row);
-  const mom = computeMomentum(row);
-
-  const div = document.createElement("div");
-  div.className = "card";
-  div.innerHTML = `
-    <h4>${escapeHtml(name)}</h4>
-    <div>
-      <span class="pill">${escapeHtml(type || "Card")}</span>
-      ${set ? `<span class="pill">${escapeHtml(set)}</span>` : ""}
-    </div>
-    <div class="muted" style="margin-top:6px;">
-      ${cost ? `Cost: <strong>${escapeHtml(cost)}</strong>` : ""}
-      ${mom ? ` &nbsp; Momentum: <strong>${escapeHtml(mom)}</strong>` : ""}
-      ${row.__sourceFile ? `<div style="margin-top:6px;">Source: <code>${escapeHtml(row.__sourceFile)}</code></div>` : ""}
-    </div>
-  `;
-  return div;
-}
+function cardName(row) { return norm(getField(row, "Card Name", "Name", "Title")); }
+function cardType(row) { return norm(getField(row, "Type")); }
+function cardSet(row) { return norm(getField(row, "Set")); }
+function cardCost(row) { return norm(getField(row, "Cost")); }
+function cardMomentum(row) { return norm(getField(row, "Momentum")); }
 
 function escapeHtml(str) {
   return String(str ?? "")
@@ -50,12 +22,56 @@ function escapeHtml(str) {
     .replaceAll("'", "&#039;");
 }
 
-function clearEl(el) {
-  while (el.firstChild) el.removeChild(el.firstChild);
+function clearEl(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+
+function renderCardTile(row) {
+  const name = cardName(row);
+  const type = cardType(row) || "Card";
+  const set = cardSet(row);
+  const cost = cardCost(row);
+  const mom = cardMomentum(row);
+
+  const div = document.createElement("div");
+  div.className = "card";
+  div.innerHTML = `
+    <div style="font-weight:900; font-size:16px; margin-bottom:6px;">${escapeHtml(name)}</div>
+    <div style="margin-bottom:6px;">
+      <span class="pill">${escapeHtml(type)}</span>
+      ${set ? `<span class="pill">${escapeHtml(set)}</span>` : ""}
+    </div>
+    <div class="muted" style="font-size:13px;">
+      ${cost ? `Cost: <b>${escapeHtml(cost)}</b>` : ""}
+      ${mom ? ` &nbsp; Momentum: <b>${escapeHtml(mom)}</b>` : ""}
+      ${row.__sourceFile ? `<div style="margin-top:6px;">Source: <code>${escapeHtml(row.__sourceFile)}</code></div>` : ""}
+    </div>
+  `;
+  return div;
+}
+
+function renderPool(poolRows, gridEl) {
+  clearEl(gridEl);
+
+  if (!poolRows.length) {
+    gridEl.innerHTML = `<div class="muted">No pool cards after exclusions. Check your Kit flag and Starting For usage.</div>`;
+    return;
+  }
+
+  const MAX = 140;
+  const rows = poolRows.slice(0, MAX);
+
+  const info = document.createElement("div");
+  info.className = "muted";
+  info.style.gridColumn = "1 / -1";
+  info.innerHTML = `Showing <b>${rows.length}</b> of <b>${poolRows.length}</b> pool cards (mobile cap).`;
+  gridEl.appendChild(info);
+
+  for (const r of rows) gridEl.appendChild(renderCardTile(r));
 }
 
 export async function initApp() {
-  const { showError, setStatus } = window.AEWDBG;
+  const AEW = window.AEWDBG || {};
+  const setStatus = AEW.setStatus ? AEW.setStatus : () => {};
+  const showError = AEW.showError ? AEW.showError : () => {};
 
   const personaSelect = document.getElementById("personaSelect");
   const clearPersonaBtn = document.getElementById("clearPersonaBtn");
@@ -63,7 +79,7 @@ export async function initApp() {
   const poolGrid = document.getElementById("poolGrid");
 
   if (!personaSelect || !starterGrid || !poolGrid) {
-    showError("UI init failed", "Missing required DOM elements. Check index.html IDs.");
+    showError("UI init failed", new Error("Missing required DOM elements. Check index.html IDs."));
     return;
   }
 
@@ -71,31 +87,43 @@ export async function initApp() {
   try {
     data = await loadAllData();
   } catch (e) {
-    // loadAllData already shows popup + status, just stop
+    // loadAllData already popped error
     return;
   }
 
-  // Fill persona dropdown (identity is NAME ONLY)
-  const names = data.personas.map(p => p.name).filter(Boolean);
-  names.sort((a, b) => a.localeCompare(b));
+  // Persona identity = Name only, no type suffix
+  const personaNames = data.personas.map(p => p.name).filter(Boolean).sort((a, b) => a.localeCompare(b));
 
   clearEl(personaSelect);
-  const opt0 = document.createElement("option");
-  opt0.value = "";
-  opt0.textContent = "(none)";
-  personaSelect.appendChild(opt0);
+  const noneOpt = document.createElement("option");
+  noneOpt.value = "";
+  noneOpt.textContent = "(none)";
+  personaSelect.appendChild(noneOpt);
 
-  for (const name of names) {
+  for (const nm of personaNames) {
     const opt = document.createElement("option");
-    opt.value = name;
-    opt.textContent = name;
+    opt.value = nm;
+    opt.textContent = nm;
     personaSelect.appendChild(opt);
   }
 
-  // Render initial pool
   renderPool(data.pool, poolGrid);
+  renderStarters("");
 
-  function renderStartersForPersona(personaName) {
+  personaSelect.addEventListener("change", () => {
+    renderStarters(personaSelect.value);
+    setStatus(`Status: Loaded  Sets: ${data.sets.length}  Cards: ${data.allRows.length}  Persona: ${personaSelect.value || "(none)"}`);
+  });
+
+  clearPersonaBtn?.addEventListener("click", () => {
+    personaSelect.value = "";
+    renderStarters("");
+    setStatus(`Status: Loaded  Sets: ${data.sets.length}  Cards: ${data.allRows.length}  Persona: (none)`);
+  });
+
+  setStatus(`Status: Loaded  Sets: ${data.sets.length}  Cards: ${data.allRows.length}`);
+
+  function renderStarters(personaName) {
     clearEl(starterGrid);
 
     if (!personaName) {
@@ -103,69 +131,26 @@ export async function initApp() {
       return;
     }
 
-    // Starter cards based on Starting For / Signature For mapping
-    const starters = data.startersByPersona.get(personaName) || [];
+    let starters = data.startersByPersona.get(personaName) || [];
 
-    // If nothing matched exactly, try a loose match (helps if TSV has weird whitespace)
-    let resolved = starters;
-    if (resolved.length === 0) {
+    // Loose match fallback (whitespace weirdness)
+    if (!starters.length) {
       const key = Array.from(data.startersByPersona.keys()).find(k => k.trim() === personaName.trim());
-      if (key) resolved = data.startersByPersona.get(key) || [];
+      if (key) starters = data.startersByPersona.get(key) || [];
     }
 
-    if (resolved.length === 0) {
-      starterGrid.innerHTML = `<div class="muted">No Starter/Kit cards found for <strong>${escapeHtml(personaName)}</strong>. (Check the TSV "Starting For" column spelling + values.)</div>`;
+    if (!starters.length) {
+      starterGrid.innerHTML =
+        `<div class="muted">No Starter/Kit cards found for <b>${escapeHtml(personaName)}</b>. Check the TSV column name "Starting For" and values.</div>`;
       return;
     }
 
-    // Sort by Type then Name
-    const sorted = [...resolved].sort((a, b) => {
-      const ta = computeType(a).localeCompare(computeType(b));
+    const sorted = [...starters].sort((a, b) => {
+      const ta = cardType(a).localeCompare(cardType(b));
       if (ta !== 0) return ta;
-      return computeCardName(a).localeCompare(computeCardName(b));
+      return cardName(a).localeCompare(cardName(b));
     });
 
-    for (const row of sorted) {
-      starterGrid.appendChild(renderCardTile(row));
-    }
-  }
-
-  personaSelect.addEventListener("change", () => {
-    const personaName = personaSelect.value;
-    renderStartersForPersona(personaName);
-    setStatus(`Status: Loaded · Sets: ${data.sets.length} · Cards: ${data.allRows.length} · Persona: ${personaName || "(none)"}`);
-  });
-
-  clearPersonaBtn?.addEventListener("click", () => {
-    personaSelect.value = "";
-    renderStartersForPersona("");
-    setStatus(`Status: Loaded · Sets: ${data.sets.length} · Cards: ${data.allRows.length} · Persona: (none)`);
-  });
-
-  // Initial render
-  renderStartersForPersona("");
-  setStatus(`Status: Loaded · Sets: ${data.sets.length} · Cards: ${data.allRows.length}`);
-}
-
-function renderPool(poolRows, gridEl) {
-  clearEl(gridEl);
-
-  // Keep it light on mobile: show first N, but easy to change later
-  const MAX = 120;
-  const rows = poolRows.slice(0, MAX);
-
-  if (poolRows.length === 0) {
-    gridEl.innerHTML = `<div class="muted">No cards in pool after exclusions. That usually means your "Starting For" column is filled on everything, or Kits are marked broadly.</div>`;
-    return;
-  }
-
-  const header = document.createElement("div");
-  header.className = "muted";
-  header.style.gridColumn = "1 / -1";
-  header.innerHTML = `Showing <strong>${rows.length}</strong> of <strong>${poolRows.length}</strong> pool cards (mobile-friendly cap).`;
-  gridEl.appendChild(header);
-
-  for (const row of rows) {
-    gridEl.appendChild(renderCardTile(row));
+    for (const r of sorted) starterGrid.appendChild(renderCardTile(r));
   }
 }
