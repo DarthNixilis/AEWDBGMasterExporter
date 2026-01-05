@@ -1,76 +1,96 @@
-function matchesStartingFor(card, persona) {
-  const sf = (card.startingFor ?? "").trim().toLowerCase();
-  if (!sf || !persona) return false;
+import { cardRules } from "../rules/cardRules.js";
 
-  const personaName = (persona.displayName || persona.name || "").trim().toLowerCase();
-  const personaRaw = (persona.name || "").trim().toLowerCase();
-
-  // Match either to displayName (no suffix) or raw name (with suffix).
-  return sf === personaName || sf === personaRaw;
-}
-
-function renderCard(c) {
-  const name = c.displayName || c.name || "(unnamed)";
-  const metaBits = [];
-  if (c.type) metaBits.push(c.type);
-  if (c.sets) metaBits.push(c.sets);
-  const meta = metaBits.join(" • ");
-
-  const tags = [];
-  if (c.cost) tags.push(`C:${c.cost}`);
-  if (c.damage) tags.push(`D:${c.damage}`);
-  if (c.momentum) tags.push(`M:${c.momentum}`);
-  if (c.target) tags.push(`T:${c.target}`);
-  if (c.traits) tags.push(c.traits);
-
-  return `
-    <div class="card">
-      <div class="cardTitle">
-        <div class="name">${escapeHtml(name)}</div>
-        <div class="meta">${escapeHtml(meta)}</div>
-      </div>
-      <div class="text">${escapeHtml(c.gameText || "")}</div>
-      <div class="tagRow">
-        ${tags.filter(Boolean).slice(0, 6).map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join("")}
-      </div>
-    </div>
-  `;
-}
-
-function render(container, cards, persona) {
-  const title = `Starting Cards`;
-  if (!persona) {
-    container.innerHTML = `
-      <div style="font-weight:800; font-size:18px;">${title}</div>
-      <div class="hint">Default is none selected. Pick a Persona to see their starting grid.</div>
-      <div class="empty">No Persona selected.</div>
-    `;
-    return;
-  }
-
-  const starters = cards.filter((c) => matchesStartingFor(c, persona));
-  // Include the persona card itself in the grid too (you asked for this)
-  const personaCard = persona;
-
-  const all = [personaCard, ...starters];
-
-  container.innerHTML = `
-    <div style="font-weight:800; font-size:18px;">${title}</div>
-    <div class="hint">
-      Showing Persona + all cards whose <b>Starting For</b> matches: <b>${escapeHtml(persona.displayName || persona.name)}</b>
-    </div>
-
-    ${all.length ? `<div class="grid">${all.map(renderCard).join("")}</div>` : `<div class="empty">No starters found for this Persona.</div>`}
-  `;
-}
-
-function escapeHtml(s) {
-  return (s ?? "").toString()
+function escapeHtml(str) {
+  return String(str ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+    .replaceAll("'", "&#39;");
 }
 
-export const startingGrid = { render };
+function normalizeKey(s) {
+  return String(s ?? "").trim().toLowerCase();
+}
+
+function displayName(card) {
+  const name = String(card?.name ?? "");
+  const t = String(card?.typeNormalized ?? "").toLowerCase();
+
+  const suffixMap = {
+    wrestler: " Wrestler",
+    manager: " Manager",
+    call_name: " Call Name",
+    faction: " Faction",
+  };
+
+  const suffix = suffixMap[t];
+  if (suffix && name.endsWith(suffix)) return name.slice(0, -suffix.length).trim();
+  return name.trim();
+}
+
+function findSelectedPersona(allCards, selectedPersonaId) {
+  if (!selectedPersonaId) return null;
+  return (allCards ?? []).find((c) => String(c.id) === String(selectedPersonaId)) || null;
+}
+
+function getStartingCardsForPersona(allCards, personaCard) {
+  if (!personaCard) return [];
+
+  const personaName = displayName(personaCard);
+  const personaKey = normalizeKey(personaName);
+
+  // Starting grid should include:
+  // - the persona card itself
+  // - any cards whose Starting For matches the persona display name (case-insensitive)
+  const kits = (allCards ?? []).filter((c) => normalizeKey(c.startingFor) === personaKey);
+
+  return [personaCard, ...kits];
+}
+
+function renderStartingCard(card) {
+  const title = escapeHtml(displayName(card));
+  const meta = escapeHtml(cardRules.cardLine(card));
+  const text = escapeHtml(card.gameText || "");
+
+  return `
+    <div class="card card--grid">
+      <div class="card__title">${title}</div>
+      <div class="card__meta">${meta}</div>
+      ${text ? `<div class="card__text">${text}</div>` : ""}
+    </div>
+  `;
+}
+
+function renderStartingTab(state, allCards) {
+  const persona = findSelectedPersona(allCards, state?.selectedPersonaId ?? "");
+  if (!persona) {
+    return `
+      <div class="panel">
+        <div class="hint">No persona selected. Go to the Persona tab first.</div>
+      </div>
+    `;
+  }
+
+  const startingCards = getStartingCardsForPersona(allCards, persona);
+  const grid = startingCards.map(renderStartingCard).join("");
+
+  return `
+    <div class="panel">
+      <div class="hint">Showing Starting cards for: <b>${escapeHtml(displayName(persona))}</b></div>
+      <div class="spacer"></div>
+      <div class="grid">
+        ${grid}
+      </div>
+    </div>
+  `;
+}
+
+function bindStartingTab(store, allCards, rerenderAll) {
+  // No inputs yet, nothing to bind.
+}
+
+export const startingGrid = {
+  renderStartingTab,
+  bindStartingTab,
+};
