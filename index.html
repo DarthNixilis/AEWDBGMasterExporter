@@ -1,173 +1,197 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
-    />
-    <title>AEW TCG Deck Builder</title>
-    <link rel="stylesheet" href="./style.css" />
-    <style>
-      /* Minimal safety styling if style.css is missing */
-      body {
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-        margin: 0;
-        padding: 0;
-      }
-      header {
-        padding: 12px;
-        border-bottom: 1px solid #ddd;
-        position: sticky;
-        top: 0;
-        background: #fff;
-        z-index: 10;
-      }
-      .tabs {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-      }
-      .tabs button {
-        padding: 8px 10px;
-        border: 1px solid #ccc;
-        background: #f6f6f6;
-        border-radius: 8px;
-      }
-      .tabs button.active {
-        background: #111;
-        color: #fff;
-        border-color: #111;
-      }
-      main {
-        padding: 12px;
-      }
-      .row {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        align-items: center;
-      }
-      select {
-        padding: 8px;
-        border-radius: 8px;
-        border: 1px solid #ccc;
-      }
-      #status {
-        font-size: 14px;
-        opacity: 0.85;
-        margin-top: 8px;
-      }
-      .panel {
-        display: none;
-      }
-      .panel.active {
-        display: block;
-      }
-      .hint {
-        font-size: 13px;
-        opacity: 0.8;
-        margin: 8px 0 14px;
-      }
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-        gap: 10px;
-      }
-      .card {
-        border: 1px solid #ddd;
-        border-radius: 12px;
-        padding: 10px;
-        background: #fff;
-      }
-      .card h3 {
-        margin: 0 0 6px;
-        font-size: 16px;
-      }
-      .meta {
-        font-size: 12px;
-        opacity: 0.85;
-        margin-bottom: 6px;
-      }
-      .text {
-        font-size: 13px;
-        white-space: pre-wrap;
-      }
-      .toolbar {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        align-items: center;
-        margin: 10px 0;
-      }
-      input[type="search"] {
-        padding: 8px;
-        border: 1px solid #ccc;
-        border-radius: 10px;
-        width: min(420px, 100%);
-      }
-    </style>
-  </head>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AEW TCG Deck Builder</title>
+  <style>
+    :root {
+      --bg: #0b0c10;
+      --panel: #14161d;
+      --panel2: #101219;
+      --text: #e8e8ea;
+      --muted: #a7abb6;
+      --border: rgba(255,255,255,0.12);
+      --accent: #ff3b3b;
+      --ok: #47d18c;
+      --warn: #ffcc66;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: rgba(11,12,16,0.92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 12px;
+    }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .tabBtn {
+      border: 1px solid var(--border);
+      background: var(--panel2);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .tabBtn[aria-selected="true"] {
+      outline: 2px solid rgba(255,59,59,0.45);
+      border-color: rgba(255,59,59,0.55);
+    }
+    .statusRow {
+      margin-top: 8px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .pill {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 10px;
+      background: rgba(255,255,255,0.04);
+    }
+    main { padding: 12px; max-width: 1200px; margin: 0 auto; }
+    .panel {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: 14px;
+      padding: 12px;
+    }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    label { font-size: 13px; color: var(--muted); }
+    select, input {
+      background: #0e1017;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 15px;
+    }
+    button {
+      border: 1px solid var(--border);
+      background: #0e1017;
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    button.primary {
+      background: rgba(255,59,59,0.14);
+      border-color: rgba(255,59,59,0.45);
+    }
+    button:active { transform: translateY(1px); }
 
-  <body>
-    <header>
-      <div class="tabs" id="tabs">
-        <button data-tab="persona" class="active">Persona</button>
-        <button data-tab="cardpool">Card Pool</button>
-        <button data-tab="deck">Deck</button>
-        <button data-tab="starting">Starting</button>
-      </div>
+    .hint { color: var(--muted); font-size: 13px; line-height: 1.35; margin-top: 10px; }
+    .divider { height: 1px; background: var(--border); margin: 12px 0; }
 
-      <div id="status">Status: Loading…</div>
-    </header>
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .card {
+      border: 1px solid var(--border);
+      background: #0e1017;
+      border-radius: 14px;
+      padding: 10px;
+      min-height: 110px;
+    }
+    .cardTitle {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: baseline;
+    }
+    .name { font-weight: 800; letter-spacing: 0.2px; }
+    .meta { font-size: 12px; color: var(--muted); }
+    .text { font-size: 13px; margin-top: 8px; color: #d7d7db; white-space: pre-wrap; }
+    .tagRow { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .tag {
+      font-size: 12px;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      padding: 3px 8px;
+      border-radius: 999px;
+    }
 
-    <main>
-      <section id="panel-persona" class="panel active">
-        <div class="hint">
-          Pick a Persona. Their Starter cards (including Kit cards) will auto-load using
-          the <b>Starting For</b> column. Kit cards will never appear in Card Pool.
-        </div>
+    .toastWrap {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      width: min(520px, calc(100% - 24px));
+      pointer-events: none;
+    }
+    .toast {
+      pointer-events: auto;
+      border: 1px solid var(--border);
+      background: rgba(20,22,29,0.96);
+      border-radius: 14px;
+      padding: 10px 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+      margin-top: 10px;
+    }
+    .toast strong { display: block; margin-bottom: 4px; }
+    .toast.ok { border-color: rgba(71,209,140,0.5); }
+    .toast.warn { border-color: rgba(255,204,102,0.5); }
+    .toast.err { border-color: rgba(255,59,59,0.55); }
 
-        <div class="row">
-          <label for="personaSelect"><b>Choose Persona:</b></label>
-          <select id="personaSelect"></select>
-        </div>
+    .empty {
+      color: var(--muted);
+      padding: 14px;
+      border: 1px dashed var(--border);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.02);
+      margin-top: 12px;
+    }
+  </style>
+</head>
 
-        <div class="toolbar">
-          <button id="clearPersonaBtn" type="button">Clear Persona</button>
-        </div>
+<body>
+  <header>
+    <div class="tabs" role="tablist" aria-label="Sections">
+      <button class="tabBtn" id="tabPersona" role="tab" aria-selected="true" data-tab="persona">Persona</button>
+      <button class="tabBtn" id="tabPool" role="tab" aria-selected="false" data-tab="pool">Card Pool</button>
+      <button class="tabBtn" id="tabDeck" role="tab" aria-selected="false" data-tab="deck">Deck</button>
+      <button class="tabBtn" id="tabStarting" role="tab" aria-selected="false" data-tab="starting">Starting</button>
+    </div>
 
-        <div id="personaGrid" class="grid"></div>
-      </section>
+    <div class="statusRow">
+      <span class="pill" id="statusPill">Status: Loading…</span>
+      <span class="pill" id="setPill">Sets: (loading)</span>
+      <span class="pill" id="countPill">Cards: (loading)</span>
+    </div>
+  </header>
 
-      <section id="panel-cardpool" class="panel">
-        <div class="hint">
-          Card Pool excludes any card that has <b>Starting For</b> filled in (those are starters/kit/etc).
-          Also excludes Kits even if you forget and label them weird.
-        </div>
+  <main>
+    <section class="panel" id="viewPersona"></section>
+    <section class="panel" id="viewPool" style="display:none;"></section>
+    <section class="panel" id="viewDeck" style="display:none;"></section>
+    <section class="panel" id="viewStarting" style="display:none;"></section>
+  </main>
 
-        <div class="toolbar">
-          <input id="poolSearch" type="search" placeholder="Search card pool…" />
-        </div>
+  <div class="toastWrap" id="toastWrap" aria-live="polite" aria-atomic="true"></div>
 
-        <div id="cardPoolGrid" class="grid"></div>
-      </section>
-
-      <section id="panel-deck" class="panel">
-        <div class="hint">
-          Deck tab is next after persona+starting are stable. We’ll wire validation + export here.
-        </div>
-        <div id="deckArea">Deck: (coming next)</div>
-      </section>
-
-      <section id="panel-starting" class="panel">
-        <div class="hint">
-          Shows the selected Persona + all their starter cards in a grid. Default: none selected.
-        </div>
-        <div id="startingGrid" class="grid"></div>
-      </section>
-    </main>
-
-    <script type="module" src="./js/main.js"></script>
-  </body>
+  <script type="module" src="./js/main.js"></script>
+</body>
 </html>
