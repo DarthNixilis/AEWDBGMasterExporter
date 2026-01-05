@@ -1,57 +1,53 @@
-export function normalizeRow(row) {
-  // Make common keys available as dot props, while keeping the original header keys too.
-  // This lets us support headers like "Game Text" without exploding the whole app.
-  const name = row["name"] ?? row.name ?? "";
-  const type = row["type"] ?? row.type ?? "";
-  const traits = row["traits"] ?? row.traits ?? "";
-  const imagefile = row["imagefile"] ?? row["image file"] ?? row["imagefile"] ?? row.imagefile ?? "";
-  const gametext = row["game text"] ?? row["gametext"] ?? row.gametext ?? "";
-
-  const wrestlerlogo = row["wrestler logo"] ?? row["wrestlerlogo"] ?? row.wrestlerlogo ?? "";
-
-  return {
-    ...row,
-    name,
-    type,
-    traits,
-    imagefile,
-    gametext,
-    wrestlerlogo
-  };
+function el(id) {
+  const node = document.getElementById(id);
+  if (!node) throw new Error(`Missing element #${id}`);
+  return node;
 }
 
-export function renderCardGrid(container, cards) {
-  if (!container) return;
-  if (!cards || cards.length === 0) {
-    container.innerHTML = `<div class="muted">No cards to show.</div>`;
-    return;
+function safeText(s) {
+  return (s ?? "").toString();
+}
+
+function toast(title, message, kind = "info", sticky = false) {
+  const wrap = el("toastWrap");
+  const t = document.createElement("div");
+  t.className = `toast ${kind === "ok" ? "ok" : kind === "warn" ? "warn" : kind === "err" ? "err" : ""}`;
+  t.innerHTML = `<strong>${safeText(title)}</strong><div>${safeText(message)}</div>`;
+
+  const close = document.createElement("button");
+  close.textContent = "Close";
+  close.style.marginTop = "8px";
+  close.addEventListener("click", () => t.remove());
+  t.appendChild(close);
+
+  wrap.appendChild(t);
+
+  if (!sticky) {
+    setTimeout(() => {
+      if (t.isConnected) t.remove();
+    }, 4500);
   }
-
-  container.innerHTML = cards.map(c => {
-    const name = c.name || "(Unnamed)";
-    const type = c.type || "";
-    const cost = c.cost || c["cost"] || "";
-    const dmg = c.damage || c["damage"] || "";
-    const mom = c.momentum || c["momentum"] || "";
-    const traits = c.traits || "";
-    const text = c.gametext || c["game text"] || "";
-
-    return `
-      <div class="card">
-        <h3>${escapeHtml(name)}</h3>
-        <div class="muted">${escapeHtml(type)}${cost!=="" ? ` • C:${escapeHtml(cost)}` : ""}${dmg!=="" ? ` • D:${escapeHtml(dmg)}` : ""}${mom!=="" ? ` • M:${escapeHtml(mom)}` : ""}</div>
-        ${traits ? `<div class="muted">Traits: ${escapeHtml(traits)}</div>` : ""}
-        ${text ? `<div style="margin-top:8px; font-size:12px; line-height:1.35;">${escapeHtml(text)}</div>` : ""}
-      </div>
-    `;
-  }).join("");
 }
 
-function escapeHtml(str) {
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+function setStatus(text, kind = "info") {
+  const pill = el("statusPill");
+  pill.textContent = `Status: ${safeText(text)}`;
+  pill.style.borderColor =
+    kind === "ok"
+      ? "rgba(71,209,140,0.5)"
+      : kind === "err"
+      ? "rgba(255,59,59,0.55)"
+      : kind === "warn"
+      ? "rgba(255,204,102,0.5)"
+      : "rgba(255,255,255,0.12)";
 }
+
+function setSets(sets) {
+  el("setPill").textContent = `Sets: ${sets.length ? sets.join(", ") : "(none)"}`;
+}
+
+function setCardCount(n) {
+  el("countPill").textContent = `Cards: ${n}`;
+}
+
+export const ui = { toast, setStatus, setSets, setCardCount };
