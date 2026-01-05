@@ -1,174 +1,156 @@
+
 <!-- FILE: index.html -->
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AEW TCG Deck Builder</title>
   <link rel="stylesheet" href="./style.css" />
 
   <style>
-    /* Minimal safety UI if CSS fails */
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; }
-    .topbar { padding: 10px 12px; border-bottom: 1px solid rgba(0,0,0,.12); position: sticky; top: 0; background: #fff; z-index: 5; }
-    .wrap { padding: 12px; }
-    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-    select, button { font-size: 16px; padding: 8px 10px; }
-    .muted { opacity: .75; }
-    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; margin-top: 12px; }
-    .card { border: 1px solid rgba(0,0,0,.12); border-radius: 10px; padding: 10px; }
-    .card h4 { margin: 0 0 6px 0; font-size: 16px; }
-    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(0,0,0,.12); font-size: 12px; margin-right: 6px; }
-    .error-toast {
-      position: fixed; left: 12px; right: 12px; bottom: 12px;
-      background: #111; color: #fff; padding: 10px 12px; border-radius: 12px;
-      box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 9999;
-      max-height: 45vh; overflow: auto;
+    header { padding: 12px; border-bottom: 1px solid #ddd; position: sticky; top: 0; background: #fff; z-index: 10; }
+    #statusLine { font-size: 14px; color: #222; }
+    main { padding: 16px; max-width: 980px; margin: 0 auto; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    select, button { font-size: 16px; padding: 10px 12px; }
+    .muted { color: #666; }
+    h2 { margin-top: 26px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #fff; }
+    .pill { display:inline-block; border:1px solid #ddd; border-radius:999px; padding:2px 8px; font-size:12px; margin-right:6px; color:#333; }
+    .toastWrap {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      display: flex; justify-content: center; pointer-events: none;
+      padding: 10px; z-index: 9999;
     }
-    .error-toast pre { white-space: pre-wrap; word-break: break-word; margin: 8px 0 0 0; font-size: 12px; opacity: .9; }
-    .error-toast .hdr { display:flex; justify-content:space-between; gap:10px; align-items:center; }
-    .error-toast button { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.25); border-radius: 10px; padding: 6px 10px; }
+    .toast {
+      pointer-events: auto;
+      width: min(620px, calc(100vw - 20px));
+      background: #111; color: #fff;
+      border-radius: 14px;
+      padding: 12px 12px 10px;
+      box-shadow: 0 10px 40px rgba(0,0,0,.35);
+    }
+    .toastHead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .toastTitle { font-weight: 800; }
+    .toastBtns { display: flex; gap: 8px; }
+    .toastBtns button { padding: 8px 10px; border-radius: 10px; border: 0; }
+    .toast pre { margin: 10px 0 0; font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 45vh; overflow: auto; }
   </style>
-
-  <script>
-    // FILE: index.html (bootstrap error surface)
-    (function () {
-      const state = {
-        lastStatus: "",
-        toastEl: null
-      };
-
-      function ensureToast() {
-        if (state.toastEl) return state.toastEl;
-        const el = document.createElement("div");
-        el.className = "error-toast";
-        el.style.display = "none";
-        el.innerHTML = `
-          <div class="hdr">
-            <div><strong>App Error</strong> <span class="muted" id="errTime"></span></div>
-            <div class="row">
-              <button id="errCopy" type="button">Copy</button>
-              <button id="errClose" type="button">Close</button>
-            </div>
-          </div>
-          <div id="errMsg"></div>
-          <pre id="errDetails"></pre>
-        `;
-        document.body.appendChild(el);
-        el.querySelector("#errClose").onclick = () => { el.style.display = "none"; };
-        el.querySelector("#errCopy").onclick = async () => {
-          const text = [
-            el.querySelector("#errMsg").textContent || "",
-            el.querySelector("#errDetails").textContent || ""
-          ].join("\n\n").trim();
-          try {
-            await navigator.clipboard.writeText(text);
-            alert("Copied error details to clipboard.");
-          } catch {
-            alert("Copy failed. (Android clipboard can be picky.)\n\n" + text);
-          }
-        };
-        state.toastEl = el;
-        return el;
-      }
-
-      function showError(message, details) {
-        try {
-          const el = ensureToast();
-          el.querySelector("#errTime").textContent = "· " + new Date().toLocaleTimeString();
-          el.querySelector("#errMsg").textContent = message || "Unknown error";
-          el.querySelector("#errDetails").textContent = details || "";
-          el.style.display = "block";
-        } catch (e) {
-          // Last resort: alert
-          alert("App Error: " + (message || "Unknown") + "\n\n" + (details || ""));
-        }
-      }
-
-      function setStatus(text) {
-        state.lastStatus = String(text || "");
-        const node = document.getElementById("statusText");
-        if (node) node.textContent = state.lastStatus;
-      }
-
-      // Expose globally so even early failures can report
-      window.AEWDBG = window.AEWDBG || {};
-      window.AEWDBG.showError = showError;
-      window.AEWDBG.setStatus = setStatus;
-
-      // Catch anything that would normally only be visible in console
-      window.addEventListener("error", (ev) => {
-        const msg = ev?.message || "Script error";
-        const src = ev?.filename ? `${ev.filename}:${ev.lineno || 0}:${ev.colno || 0}` : "";
-        showError(msg, src + (ev?.error?.stack ? "\n\n" + ev.error.stack : ""));
-      });
-
-      window.addEventListener("unhandledrejection", (ev) => {
-        const reason = ev?.reason;
-        const msg = (reason && (reason.message || String(reason))) || "Unhandled promise rejection";
-        const details = reason?.stack ? reason.stack : "";
-        showError(msg, details);
-      });
-    })();
-  </script>
 </head>
 
 <body>
-  <div class="topbar">
-    <div class="row">
-      <div><strong id="appTitle">Persona</strong> <span class="muted">Card Pool</span> <span class="muted">Deck</span> <span class="muted">Starting</span></div>
-    </div>
-    <div class="row" style="margin-top:6px;">
-      <div id="statusText">Status: Loading… Sets: (loading) Cards: (loading)</div>
-    </div>
-  </div>
+  <header>
+    <div style="font-size: 22px; font-weight: 900;">Persona <span class="muted" style="font-weight:600;">Card Pool Deck Starting</span></div>
+    <div id="statusLine">Status: Loading…  Sets: (loading)  Cards: (loading)</div>
+  </header>
 
-  <div class="wrap">
+  <main>
     <p class="muted">
-      Pick a Persona. Their Starter cards (including Kit cards) will auto-load using the <code>Starting For</code> column.
-      Kit cards will never appear in Card Pool.
+      Pick a Persona. Their Starter cards (including Kit cards) auto-load using <b>Starting For</b>.
+      Kit cards never appear in Card Pool.
     </p>
 
-    <div class="row">
-      <label for="personaSelect"><strong>Choose Persona:</strong></label>
+    <div class="row" style="margin: 12px 0 6px;">
+      <label for="personaSelect" style="font-weight: 800;">Choose Persona:</label>
       <select id="personaSelect">
         <option value="">(loading…)</option>
       </select>
       <button id="clearPersonaBtn" type="button">Clear Persona</button>
     </div>
 
-    <p class="muted" style="margin-top:10px;">
-      Card Pool excludes any card that has <code>Starting For</code> filled in (those are starters/kit/etc).
-      Also excludes Kits even if you forget and label them weird.
+    <p class="muted">
+      Card Pool excludes any card with <b>Starting For</b> filled, and excludes Kits.
     </p>
 
-    <h3 style="margin:14px 0 6px 0;">Starter / Kit cards for selected Persona</h3>
-    <div id="starterGrid" class="cards"></div>
+    <h2>Starter / Kit cards for selected Persona</h2>
+    <div id="starterGrid" class="grid">
+      <div class="muted">Loading…</div>
+    </div>
 
-    <h3 style="margin:14px 0 6px 0;">General Card Pool (no Kits, no Starters)</h3>
-    <div id="poolGrid" class="cards"></div>
+    <h2>General Card Pool (no Kits, no Starters)</h2>
+    <div id="poolGrid" class="grid">
+      <div class="muted">Loading…</div>
+    </div>
+  </main>
+
+  <div class="toastWrap" id="toastWrap" style="display:none;">
+    <div class="toast">
+      <div class="toastHead">
+        <div>
+          <div class="toastTitle" id="toastTitle">App Error</div>
+          <div class="muted" id="toastTime" style="color:#bbb;font-size:12px;"></div>
+        </div>
+        <div class="toastBtns">
+          <button id="toastCopyBtn" type="button">Copy</button>
+          <button id="toastCloseBtn" type="button">Close</button>
+        </div>
+      </div>
+      <pre id="toastBody"></pre>
+    </div>
   </div>
 
-  <script type="module">
-    // FILE: index.html (module bootstrap)
-    const { showError, setStatus } = window.AEWDBG;
+  <script>
+    // FILE: index.html
+    (function () {
+      const statusLine = document.getElementById("statusLine");
 
-    async function boot() {
-      setStatus("Status: Loading… Sets: (loading) Cards: (loading)");
-      try {
-        // Dynamic import so we can catch module-load failures and show them on-screen
-        const mod = await import("./renderer.js");
-        if (!mod || typeof mod.initApp !== "function") {
-          throw new Error("renderer.js loaded, but initApp() was not found.");
-        }
-        await mod.initApp();
-      } catch (err) {
-        showError("Boot failed (module load/import).", err?.stack || String(err));
-        setStatus("Status: ERROR (see popup) · Sets: (loading) · Cards: (loading)");
+      function setStatus(text) {
+        if (statusLine) statusLine.textContent = text;
       }
-    }
 
-    boot();
+      const toastWrap = document.getElementById("toastWrap");
+      const toastTitle = document.getElementById("toastTitle");
+      const toastTime = document.getElementById("toastTime");
+      const toastBody = document.getElementById("toastBody");
+      const toastCopyBtn = document.getElementById("toastCopyBtn");
+      const toastCloseBtn = document.getElementById("toastCloseBtn");
+
+      function showToast(title, body) {
+        toastTitle.textContent = title || "App Error";
+        toastTime.textContent = new Date().toLocaleTimeString();
+        toastBody.textContent = body || "";
+        toastWrap.style.display = "flex";
+
+        toastCopyBtn.onclick = async () => {
+          const text = `${toastTitle.textContent}\n\n${toastBody.textContent}`;
+          try { await navigator.clipboard.writeText(text); } catch (e) {}
+        };
+        toastCloseBtn.onclick = () => { toastWrap.style.display = "none"; };
+      }
+
+      function showError(title, err) {
+        const msg = err && err.stack ? err.stack : String(err ?? "");
+        setStatus("Status: ERROR (see popup)  Sets: (loading)  Cards: (loading)");
+        try { showToast(title || "App Error", msg); }
+        catch (e) { alert((title || "App Error") + "\n\n" + msg); }
+      }
+
+      window.AEWDBG = { setStatus, showError };
+
+      window.addEventListener("error", (ev) => {
+        showError("Uncaught error", ev.error || ev.message || ev);
+      });
+
+      window.addEventListener("unhandledrejection", (ev) => {
+        showError("Unhandled rejection", ev.reason || ev);
+      });
+
+      (async () => {
+        setStatus("Status: Loading…  Sets: (loading)  Cards: (loading)");
+        try {
+          const mod = await import("./renderer.js");
+          if (!mod || typeof mod.initApp !== "function") {
+            throw new Error("renderer.js loaded, but did not export initApp()");
+          }
+          await mod.initApp();
+        } catch (e) {
+          showError("Boot failed (module load/import).", e);
+        }
+      })();
+    })();
   </script>
 </body>
 </html>
