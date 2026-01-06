@@ -1,654 +1,403 @@
 // FILE: renderer.js
-import { loadAllData } from "./data-loader.js";
+// UI glue + button labels (counts + FULL) + local autosave + forced Lackey export.
 
-function norm(v) { return String(v == null ? "" : v).trim(); }
-function lower(v) { return norm(v).toLowerCase(); }
+import { loadSetList, loadAllCardsFromSets } from "./data-loader.js";
+import {
+  createStore, ingestAllCards,
+  setPersona, clearPersonas,
+  addToDeck, removeFromDeck, deckCounts, clearDeck,
+  exportDeckAsText, exportDeckAsLackeyDek,
+  importDeckFromAny,
+  canAddToDeck,
+  saveToLocal, loadFromLocal, applyLocalPayload,
+} from "./store.js";
 
-function getField(row, names) {
-  for (var i = 0; i < names.length; i++) {
-    var n = names[i];
-    if (Object.prototype.hasOwnProperty.call(row, n)) return row[n];
-  }
-  return "";
+const store = createStore();
+
+const el = (id) => document.getElementById(id);
+
+function nowTime() {
+  const d = new Date();
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-function cardName(row) { return norm(getField(row, ["Card Name", "Name", "Title"])); }
-function cardType(row) { return norm(getField(row, ["Type"])); }
-function cardSet(row) { return norm(getField(row, ["Set"])); }
-function cardCost(row) { return norm(getField(row, ["Cost", "C"])); }
-function cardMomentum(row) { return norm(getField(row, ["Momentum", "M"])); }
-function cardDamage(row) { return norm(getField(row, ["Damage", "D"])); }
-
-function cardText(row) {
-  return norm(getField(row, ["Game Text", "Rules Text", "Rules", "Text", "Effect", "Ability", "Abilities", "Card Text", "Text Box"]));
-}
-
-function traitString(row) {
-  return norm(getField(row, ["Traits", "Trait", "Keywords", "Keyword"]));
-}
-
-function splitTraits(s) {
-  var t = norm(s);
-  if (!t) return [];
-  return t
-    .split(/[,;/|]+/g)
-    .map(function (x) { return x.trim(); })
-    .filter(function (x) { return !!x; });
-}
-
-function parseIntSafe(v) {
-  var n = parseInt(norm(v), 10);
-  return Number.isFinite(n) ? n : null;
-}
-
-function clearEl(el) { while (el.firstChild) el.removeChild(el.firstChild); }
-
-function pill(text) {
-  var s = document.createElement("span");
-  s.className = "pill";
-  s.textContent = text;
-  return s;
-}
-
-function isFinisher(row) {
-  var blob = (cardType(row) + " " + cardText(row) + " " + traitString(row)).toLowerCase();
-  return blob.indexOf("finisher") >= 0;
-}
-
-function renderCard(row, buttons) {
-  var card = document.createElement("div");
-  card.className = "card";
-
-  var title = document.createElement("div");
-  title.className = "cardTitle";
-  title.textContent = cardName(row);
-  card.appendChild(title);
-
-  var meta = document.createElement("div");
-  meta.className = "cardMeta";
-
-  meta.appendChild(pill(cardType(row) || "Card"));
-
-  var set = cardSet(row);
-  if (set) meta.appendChild(pill(set));
-
-  var cost = cardCost(row);
-  if (cost) meta.appendChild(pill("Cost: " + cost));
-
-  var mom = cardMomentum(row);
-  if (mom) meta.appendChild(pill("Momentum: " + mom));
-
-  var dmg = cardDamage(row);
-  if (dmg) meta.appendChild(pill("Damage: " + dmg));
-
-  if (isFinisher(row)) meta.appendChild(pill("Finisher"));
-
-  card.appendChild(meta);
-
-  var txt = cardText(row);
-  var textDiv = document.createElement("div");
-  textDiv.className = "cardText";
-  textDiv.textContent = txt || "(no game text)";
-  card.appendChild(textDiv);
-
-  var traits = splitTraits(traitString(row));
-  if (traits.length) {
-    var tr = document.createElement("div");
-    tr.className = "muted cardSmall";
-    tr.textContent = "Traits: " + traits.join(", ");
-    card.appendChild(tr);
-  }
-
-  if (row.__sourceFile) {
-    var src = document.createElement("div");
-    src.className = "muted cardSmall";
-    src.textContent = "Source: " + row.__sourceFile;
-    card.appendChild(src);
-  }
-
-  if (buttons && buttons.length) {
-    var btnRow = document.createElement("div");
-    btnRow.className = "btnRow";
-    for (var i = 0; i < buttons.length; i++) btnRow.appendChild(buttons[i]);
-    card.appendChild(btnRow);
-  }
-
-  return card;
-}
-
-function mkButton(label, onClick, disabled) {
-  var b = document.createElement("button");
-  b.type = "button";
-  b.textContent = label;
-  b.disabled = !!disabled;
-  b.onclick = onClick;
-  return b;
-}
-
-function detectPersonaBucket(typeStr) {
-  var t = lower(typeStr);
-  if (t === "wrestler") return "wrestler";
-  if (t === "manager") return "manager";
-  if (t === "call name" || t === "callname" || t === "call-name") return "call";
-  if (t === "faction" || t === "stable" || t === "team" || t === "tag team" || t === "tag-team") return "faction";
-  return null;
-}
-
-function uniqueSorted(arr) {
-  var s = new Set();
-  for (var i = 0; i < arr.length; i++) {
-    var v = norm(arr[i]);
-    if (v) s.add(v);
-  }
-  return Array.from(s).sort(function (a, b) { return a.localeCompare(b); });
-}
-
-function fillPersonaSelect(selectEl, items) {
-  clearEl(selectEl);
-  var opt0 = document.createElement("option");
-  opt0.value = "";
-  opt0.textContent = "(none)";
-  selectEl.appendChild(opt0);
-
-  for (var i = 0; i < items.length; i++) {
-    var opt = document.createElement("option");
-    opt.value = items[i];
-    opt.textContent = items[i];
-    selectEl.appendChild(opt);
-  }
-}
-
-function fillFilterSelect(selectEl, values) {
-  clearEl(selectEl);
-  var o = document.createElement("option");
-  o.value = "";
-  o.textContent = "All";
-  selectEl.appendChild(o);
-
-  for (var i = 0; i < values.length; i++) {
-    var opt = document.createElement("option");
-    opt.value = values[i];
-    opt.textContent = values[i];
-    selectEl.appendChild(opt);
-  }
-}
-
-function deckKey(row) { return cardName(row); }
-
-export async function initApp() {
-  var AEW = window.AEWDBG || {};
-  var setStatus = AEW.setStatus || function () {};
-  var showError = AEW.showError || function () {};
-
-  var wrestlerSelect = document.getElementById("wrestlerSelect");
-  var managerSelect = document.getElementById("managerSelect");
-  var callNameSelect = document.getElementById("callNameSelect");
-  var factionSelect = document.getElementById("factionSelect");
-  var clearPersonasBtn = document.getElementById("clearPersonasBtn");
-
-  var starterGrid = document.getElementById("starterGrid");
-  var poolGrid = document.getElementById("poolGrid");
-
-  var searchInput = document.getElementById("searchInput");
-  var typeFilter = document.getElementById("typeFilter");
-  var traitFilter = document.getElementById("traitFilter");
-  var setFilter = document.getElementById("setFilter");
-  var clearFiltersBtn = document.getElementById("clearFiltersBtn");
-  var showMoreBtn = document.getElementById("showMoreBtn");
-  var poolSummary = document.getElementById("poolSummary");
-
-  var startDeckWindow = document.getElementById("startDeckWindow");
-  var purchaseDeckWindow = document.getElementById("purchaseDeckWindow");
-  var startCountEl = document.getElementById("startCount");
-  var purchaseCountEl = document.getElementById("purchaseCount");
-  var deckStatusLine = document.getElementById("deckStatusLine");
-  var copyDeckBtn = document.getElementById("copyDeckBtn");
-  var copyDeckJsonBtn = document.getElementById("copyDeckJsonBtn");
-  var clearDeckBtn = document.getElementById("clearDeckBtn");
-
-  if (!wrestlerSelect || !managerSelect || !callNameSelect || !factionSelect) {
-    showError("UI init failed", "Missing Persona dropdown elements.");
-    return;
-  }
-  if (!starterGrid || !poolGrid) {
-    showError("UI init failed", "Missing starterGrid/poolGrid.");
-    return;
-  }
-  if (!searchInput || !typeFilter || !traitFilter || !setFilter || !clearFiltersBtn || !showMoreBtn || !poolSummary) {
-    showError("UI init failed", "Missing pool filter controls.");
-    return;
-  }
-  if (!startDeckWindow || !purchaseDeckWindow || !startCountEl || !purchaseCountEl || !deckStatusLine || !copyDeckBtn || !copyDeckJsonBtn || !clearDeckBtn) {
-    showError("UI init failed", "Missing deckbuilder elements.");
-    return;
-  }
-
-  var data;
-  try {
-    data = await loadAllData();
-  } catch (e) {
-    return;
-  }
-
-  // Personas into 4 dropdowns
-  var buckets = { wrestler: [], manager: [], call: [], faction: [] };
-  for (var i = 0; i < data.personas.length; i++) {
-    var p = data.personas[i];
-    var bucket = detectPersonaBucket(p.type);
-    if (!bucket) continue;
-    buckets[bucket].push(p.name);
-  }
-  fillPersonaSelect(wrestlerSelect, uniqueSorted(buckets.wrestler));
-  fillPersonaSelect(managerSelect, uniqueSorted(buckets.manager));
-  fillPersonaSelect(callNameSelect, uniqueSorted(buckets.call));
-  fillPersonaSelect(factionSelect, uniqueSorted(buckets.faction));
-
-  // Deck state
-  var selected = { wrestler: "", manager: "", call: "", faction: "" };
-  var startingDeck = new Map();
-  var purchaseDeck = new Map();
-
-  function totalCount(map) {
-    var n = 0;
-    map.forEach(function (v) { n += v.qty; });
-    return n;
-  }
-
-  function copiesAcrossBoth(name) {
-    var a = startingDeck.get(name) ? startingDeck.get(name).qty : 0;
-    var b = purchaseDeck.get(name) ? purchaseDeck.get(name).qty : 0;
-    return a + b;
-  }
-
-  function finisherCountAcrossBoth() {
-    var n = 0;
-    startingDeck.forEach(function (v) { if (isFinisher(v.row)) n += v.qty; });
-    purchaseDeck.forEach(function (v) { if (isFinisher(v.row)) n += v.qty; });
-    return n;
-  }
-
-  function addToDeck(map, row) {
-    var name = deckKey(row);
-    if (!name) return;
-    var cur = map.get(name);
-    if (!cur) map.set(name, { row: row, qty: 1 });
-    else map.set(name, { row: cur.row, qty: cur.qty + 1 });
-  }
-
-  function removeFromDeck(map, name) {
-    var cur = map.get(name);
-    if (!cur) return;
-    if (cur.qty <= 1) map.delete(name);
-    else map.set(name, { row: cur.row, qty: cur.qty - 1 });
-  }
-
-  function validateAdd(row, target) {
-    var name = deckKey(row);
-    var costN = parseIntSafe(cardCost(row));
-    var totalCopies = copiesAcrossBoth(name);
-
-    if (totalCopies >= 3) return "Max 3 copies total across Starting + Purchase.";
-
-    if (target === "starting") {
-      if (costN !== 0) return "Starting Draw Deck must be Cost 0 only.";
-      var startCopies = startingDeck.get(name) ? startingDeck.get(name).qty : 0;
-      if (startCopies >= 2) return "Max 2 copies per card in Starting Draw Deck.";
-    }
-
-    if (isFinisher(row) && finisherCountAcrossBoth() >= 1) return "Only 1 Finisher total is allowed in a deck.";
-    return null;
-  }
-
-  function deckStatus() {
-    var s = totalCount(startingDeck);
-    var p = totalCount(purchaseDeck);
-    var issues = [];
-
-    if (s !== 24) issues.push("Starting needs " + String(24 - s) + " more");
-    if (p < 36) issues.push("Purchase needs " + String(36 - p) + " more");
-    if (finisherCountAcrossBoth() > 1) issues.push("Too many Finishers");
-
-    if (issues.length) return "Fix: " + issues.join(" · ");
-    return "Deck looks valid.";
-  }
-
-  function renderDeckList(map, el, which) {
-    clearEl(el);
-    if (map.size === 0) {
-      var m = document.createElement("div");
-      m.className = "muted";
-      m.textContent = "(empty)";
-      el.appendChild(m);
-      return;
-    }
-
-    var items = [];
-    map.forEach(function (v, k) { items.push({ name: k, qty: v.qty, row: v.row }); });
-    items.sort(function (a, b) { return a.name.localeCompare(b.name); });
-
-    for (var i = 0; i < items.length; i++) {
-      (function () {
-        var it = items[i];
-
-        var rowDiv = document.createElement("div");
-        rowDiv.className = "row";
-        rowDiv.style.justifyContent = "space-between";
-        rowDiv.style.margin = "6px 0";
-
-        var left = document.createElement("div");
-        left.textContent = String(it.qty) + "x " + it.name + (isFinisher(it.row) ? " (Finisher)" : "");
-
-        var right = document.createElement("div");
-        right.className = "row";
-
-        var minus = mkButton("−", function () {
-          removeFromDeck(which === "starting" ? startingDeck : purchaseDeck, it.name);
-          renderDecks();
-          renderPool();
-        }, false);
-
-        right.appendChild(minus);
-        rowDiv.appendChild(left);
-        rowDiv.appendChild(right);
-        el.appendChild(rowDiv);
-      })();
-    }
-  }
-
-  function renderDecks() {
-    startCountEl.textContent = String(totalCount(startingDeck));
-    purchaseCountEl.textContent = String(totalCount(purchaseDeck));
-    deckStatusLine.textContent = deckStatus();
-
-    renderDeckList(startingDeck, startDeckWindow, "starting");
-    renderDeckList(purchaseDeck, purchaseDeckWindow, "purchase");
-  }
-
-  function collectSelectedPersonaNames() {
-    var names = [];
-    if (selected.wrestler) names.push(selected.wrestler);
-    if (selected.manager) names.push(selected.manager);
-    if (selected.call) names.push(selected.call);
-    if (selected.faction) names.push(selected.faction);
-    return names;
-  }
-
-  function renderStarters() {
-    clearEl(starterGrid);
-    var names = collectSelectedPersonaNames();
-    if (!names.length) {
-      var m = document.createElement("div");
-      m.className = "muted";
-      m.textContent = "No Personas selected.";
-      starterGrid.appendChild(m);
-      return;
-    }
-
-    var used = 0;
-    for (var i = 0; i < names.length; i++) {
-      var personaName = names[i];
-
-      var h = document.createElement("div");
-      h.style.fontWeight = "900";
-      h.style.margin = "8px 0";
-      h.textContent = personaName;
-      starterGrid.appendChild(h);
-
-      var starters = data.startersByPersona.get(personaName) || [];
-      if (!starters.length) {
-        var mm = document.createElement("div");
-        mm.className = "muted";
-        mm.textContent = "(No Starter/Kit cards found for this Persona.)";
-        starterGrid.appendChild(mm);
-        continue;
-      }
-
-      for (var j = 0; j < starters.length; j++) {
-        starterGrid.appendChild(renderCard(starters[j], null));
-        used++;
-      }
-    }
-
-    if (!used) {
-      var z = document.createElement("div");
-      z.className = "muted";
-      z.textContent = "No starter cards found for selected Personas.";
-      starterGrid.appendChild(z);
-    }
-  }
-
-  // Filters
-  var poolLimit = 90;
-
-  function buildFilterOptions() {
-    var types = uniqueSorted(data.pool.map(function (r) { return cardType(r); }));
-    var sets = uniqueSorted(data.pool.map(function (r) { return cardSet(r); }));
-
-    var allTraits = [];
-    for (var i = 0; i < data.pool.length; i++) {
-      var list = splitTraits(traitString(data.pool[i]));
-      for (var k = 0; k < list.length; k++) allTraits.push(list[k]);
-    }
-    var traits = uniqueSorted(allTraits);
-
-    fillFilterSelect(typeFilter, types);
-    fillFilterSelect(setFilter, sets);
-    fillFilterSelect(traitFilter, traits);
-  }
-
-  function matchesSearch(row, q) {
-    if (!q) return true;
-    var hay = (cardName(row) + "\n" + cardText(row)).toLowerCase();
-    return hay.indexOf(q) >= 0;
-  }
-
-  function hasTrait(row, trait) {
-    if (!trait) return true;
-    var list = splitTraits(traitString(row));
-    for (var i = 0; i < list.length; i++) {
-      if (list[i] === trait) return true;
-    }
-    return false;
-  }
-
-  function filteredPoolRows() {
-    var q = lower(searchInput.value);
-    var t = norm(typeFilter.value);
-    var tr = norm(traitFilter.value);
-    var s = norm(setFilter.value);
-
-    var out = [];
-    for (var i = 0; i < data.pool.length; i++) {
-      var row = data.pool[i];
-      if (t && cardType(row) !== t) continue;
-      if (s && cardSet(row) !== s) continue;
-      if (tr && !hasTrait(row, tr)) continue;
-      if (!matchesSearch(row, q)) continue;
-      out.push(row);
-    }
-    return out;
-  }
-
-  function renderPool() {
-    clearEl(poolGrid);
-
-    var rows = filteredPoolRows();
-    var shown = rows.slice(0, poolLimit);
-
-    poolSummary.textContent = String(rows.length) + " match(es). Showing " + String(shown.length) + ".";
-
-    if (!rows.length) {
-      var m = document.createElement("div");
-      m.className = "muted";
-      m.textContent = "No cards match your filters.";
-      poolGrid.appendChild(m);
-      return;
-    }
-
-    for (var i = 0; i < shown.length; i++) {
-      (function () {
-        var row = shown[i];
-
-        var btns = [];
-
-        var errStart = validateAdd(row, "starting");
-        var errBuy = validateAdd(row, "purchase");
-
-        var costN = parseIntSafe(cardCost(row));
-        var showStartBtn = (costN === 0);
-
-        if (showStartBtn) {
-          btns.push(mkButton("Add to Starting", function () {
-            var msg = validateAdd(row, "starting");
-            if (msg) return showError("Deck rule", msg);
-            addToDeck(startingDeck, row);
-            renderDecks();
-            renderPool();
-          }, !!errStart));
-        }
-
-        btns.push(mkButton("Add to Purchase", function () {
-          var msg = validateAdd(row, "purchase");
-          if (msg) return showError("Deck rule", msg);
-          addToDeck(purchaseDeck, row);
-          renderDecks();
-          renderPool();
-        }, !!errBuy));
-
-        poolGrid.appendChild(renderCard(row, btns));
-      })();
-    }
-  }
-
-  function debounce(fn, ms) {
-    var t = null;
-    return function () {
-      var args = arguments;
-      if (t) clearTimeout(t);
-      t = setTimeout(function () { fn.apply(null, args); }, ms);
-    };
-  }
-
-  async function copyText(text) {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch (e) {
-      showError("Copy failed", text);
-    }
-  }
-
-  function deckLines(map) {
-    var items = [];
-    map.forEach(function (v, k) { items.push({ name: k, qty: v.qty }); });
-    items.sort(function (a, b) { return a.name.localeCompare(b.name); });
-
-    var lines = [];
-    for (var i = 0; i < items.length; i++) {
-      lines.push(String(items[i].qty) + "x " + items[i].name);
-    }
-    return lines;
-  }
-
-  function selectedSummary() {
-    var parts = [];
-    if (selected.wrestler) parts.push("Wrestler: " + selected.wrestler);
-    if (selected.manager) parts.push("Manager: " + selected.manager);
-    if (selected.call) parts.push("Call: " + selected.call);
-    if (selected.faction) parts.push("Faction: " + selected.faction);
-    return parts.length ? parts.join(" | ") : "(none)";
-  }
-
-  function exportDeckText() {
-    var lines = [];
-    lines.push("Personas: " + selectedSummary());
-    lines.push("");
-    lines.push("Starting Draw Deck (" + String(totalCount(startingDeck)) + "/24):");
-    lines = lines.concat(deckLines(startingDeck));
-    lines.push("");
-    lines.push("Purchase Deck (" + String(totalCount(purchaseDeck)) + "/36+):");
-    lines = lines.concat(deckLines(purchaseDeck));
-    lines.push("");
-    lines.push("Finishers: " + String(finisherCountAcrossBoth()) + " (max 1)");
-    return lines.join("\n");
-  }
-
-  function exportDeckJson() {
-    var payload = {
-      personas: { wrestler: selected.wrestler || null, manager: selected.manager || null, call: selected.call || null, faction: selected.faction || null },
-      starting: [],
-      purchase: [],
-      counts: { starting: totalCount(startingDeck), purchase: totalCount(purchaseDeck) }
-    };
-
-    startingDeck.forEach(function (v, k) { payload.starting.push({ name: k, qty: v.qty }); });
-    purchaseDeck.forEach(function (v, k) { payload.purchase.push({ name: k, qty: v.qty }); });
-
-    payload.starting.sort(function (a, b) { return a.name.localeCompare(b.name); });
-    payload.purchase.sort(function (a, b) { return a.name.localeCompare(b.name); });
-
-    return JSON.stringify(payload, null, 2);
-  }
-
-  function onPersonaChange() {
-    selected.wrestler = wrestlerSelect.value || "";
-    selected.manager = managerSelect.value || "";
-    selected.call = callNameSelect.value || "";
-    selected.faction = factionSelect.value || "";
-    renderStarters();
-    setStatus("Status: Loaded  Sets: " + String(data.sets.length) + "  Cards: " + String(data.allRows.length));
-  }
-
-  wrestlerSelect.addEventListener("change", onPersonaChange);
-  managerSelect.addEventListener("change", onPersonaChange);
-  callNameSelect.addEventListener("change", onPersonaChange);
-  factionSelect.addEventListener("change", onPersonaChange);
-
-  clearPersonasBtn.addEventListener("click", function () {
-    wrestlerSelect.value = "";
-    managerSelect.value = "";
-    callNameSelect.value = "";
-    factionSelect.value = "";
-    onPersonaChange();
-  });
-
-  var rerenderPoolDebounced = debounce(function () {
-    poolLimit = 90;
-    renderPool();
-  }, 120);
-
-  searchInput.addEventListener("input", rerenderPoolDebounced);
-  typeFilter.addEventListener("change", function () { poolLimit = 90; renderPool(); });
-  traitFilter.addEventListener("change", function () { poolLimit = 90; renderPool(); });
-  setFilter.addEventListener("change", function () { poolLimit = 90; renderPool(); });
-
-  clearFiltersBtn.addEventListener("click", function () {
-    searchInput.value = "";
-    typeFilter.value = "";
-    traitFilter.value = "";
-    setFilter.value = "";
-    poolLimit = 90;
-    renderPool();
-  });
-
-  showMoreBtn.addEventListener("click", function () {
-    poolLimit += 90;
-    renderPool();
-  });
-
-  copyDeckBtn.onclick = function () { copyText(exportDeckText()); };
-  copyDeckJsonBtn.onclick = function () { copyText(exportDeckJson()); };
-  clearDeckBtn.onclick = function () {
-    startingDeck.clear();
-    purchaseDeck.clear();
-    renderDecks();
-    renderPool();
+function toast(title, msg) {
+  const host = el("toastHost");
+  const wrap = document.createElement("div");
+  wrap.className = "toast";
+
+  const top = document.createElement("div");
+  top.className = "toastTop";
+
+  const left = document.createElement("div");
+  left.innerHTML = `<div class="toastTitle">${escapeHtml(title)} <span class="toastTime">· ${escapeHtml(nowTime())}</span></div>`;
+
+  const btns = document.createElement("div");
+  btns.className = "toastBtns";
+
+  const copyBtn = document.createElement("button");
+  copyBtn.textContent = "Copy";
+  copyBtn.onclick = async () => {
+    try { await navigator.clipboard.writeText(String(msg ?? "")); } catch {}
   };
 
-  // Initial render
-  buildFilterOptions();
-  renderDecks();
-  renderStarters();
-  renderPool();
+  const closeBtn = document.createElement("button");
+  closeBtn.textContent = "Close";
+  closeBtn.onclick = () => wrap.remove();
 
-  setStatus("Status: Loaded  Sets: " + String(data.sets.length) + "  Cards: " + String(data.allRows.length));
+  btns.appendChild(copyBtn);
+  btns.appendChild(closeBtn);
+
+  top.appendChild(left);
+  top.appendChild(btns);
+
+  const body = document.createElement("div");
+  body.className = "toastMsg";
+  body.textContent = String(msg ?? "");
+
+  wrap.appendChild(top);
+  wrap.appendChild(body);
+
+  host.appendChild(wrap);
 }
+
+function escapeHtml(s) {
+  return (s ?? "").toString()
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+}
+
+function setStatus(text) { el("statusLine").textContent = text; }
+function failStatus(err, where) {
+  setStatus(`Status: ERROR (see popup) Sets: (?) Cards: (?)`);
+  toast(where || "App Error", err?.stack || err?.message || String(err));
+}
+
+function optionize(select, items, placeholder) {
+  select.innerHTML = "";
+  const opt0 = document.createElement("option");
+  opt0.value = "";
+  opt0.textContent = placeholder || "(none)";
+  select.appendChild(opt0);
+  for (const c of items) {
+    const o = document.createElement("option");
+    o.value = c.name;
+    o.textContent = c.name;
+    select.appendChild(o);
+  }
+}
+
+function fillFilter(select, values) {
+  const cur = select.value || "All";
+  select.innerHTML = "";
+  const all = document.createElement("option");
+  all.value = "All";
+  all.textContent = "All";
+  select.appendChild(all);
+  for (const v of values) {
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = v;
+    select.appendChild(o);
+  }
+  select.value = values.includes(cur) ? cur : "All";
+}
+
+function makeCardTile(card, actions = []) {
+  const div = document.createElement("div");
+  div.className = "cardItem";
+
+  const dmg = card.damage ? ` · DMG ${card.damage}` : "";
+  const cost = card.cost ? `Cost ${card.cost}` : "Cost ?";
+  const mom = card.momentum ? ` · MOM ${card.momentum}` : "";
+
+  div.innerHTML = `
+    <div class="cardName">${escapeHtml(card.name)}</div>
+    <div class="meta">${escapeHtml(card.type || card.cardType || "Card")} · ${escapeHtml(cost)}${escapeHtml(mom)}${escapeHtml(dmg)} · Source: ${escapeHtml(card.set)}</div>
+    ${card.traits ? `<div class="pillRow">${card.traits.split(/[,;|]/g).map(t=>t.trim()).filter(Boolean).map(t=>`<span class="pill">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
+    ${card.gameText ? `<div class="gameText">${escapeHtml(card.gameText)}</div>` : ""}
+  `;
+
+  if (actions.length) {
+    const br = document.createElement("div");
+    br.className = "btnRow";
+    for (const a of actions) {
+      const b = document.createElement("button");
+      b.textContent = a.label;
+      if (a.className) b.className = a.className;
+      if (a.disabled) b.disabled = true;
+      b.onclick = a.onClick;
+      br.appendChild(b);
+    }
+    div.appendChild(br);
+  }
+
+  return div;
+}
+
+let visiblePool = 60;
+
+function passesCardPoolFilters(c) {
+  if (c.isKit) return false;
+  if (c.startingFor) return false;
+
+  const q = (el("searchInput").value || "").trim().toLowerCase();
+  if (q) {
+    const hay = `${c.name} ${c.gameText || ""}`.toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+
+  const t = el("typeFilter").value;
+  if (t && t !== "All") {
+    const ct = (c.type || c.cardType || "").trim();
+    if (ct !== t) return false;
+  }
+
+  const tr = el("traitFilter").value;
+  if (tr && tr !== "All") {
+    const traits = (c.traits || "").split(/[,;|]/g).map(x => x.trim()).filter(Boolean);
+    if (!traits.includes(tr)) return false;
+  }
+
+  const s = el("setFilter").value;
+  if (s && s !== "All") {
+    if (c.set !== s) return false;
+  }
+
+  return true;
+}
+
+function renderStarterCards() {
+  const host = el("starterCards");
+  host.innerHTML = "";
+  if (!store.starterCards.length) {
+    host.textContent = "(No personas selected)";
+    return;
+  }
+  for (const c of store.starterCards) host.appendChild(makeCardTile(c));
+}
+
+function renderDeckLists() {
+  const sBox = el("startingDeckBox");
+  const pBox = el("purchaseDeckBox");
+  sBox.innerHTML = "";
+  pBox.innerHTML = "";
+
+  const counts = deckCounts(store);
+  el("startingDeckTitle").textContent = `Starting Draw Deck (${counts.starting}/24)`;
+  el("purchaseDeckTitle").textContent = `Purchase Deck (${counts.purchase} / 36+)`;
+
+  const renderMap = (box, zone, map) => {
+    const items = [...map.entries()]
+      .map(([key, v]) => ({ key, ...v }))
+      .sort((a, b) => a.card.name.localeCompare(b.card.name));
+
+    if (!items.length) {
+      const d = document.createElement("div");
+      d.className = "cardItem";
+      d.textContent = "(empty)";
+      box.appendChild(d);
+      return;
+    }
+
+    for (const it of items) {
+      box.appendChild(makeCardTile(it.card, [
+        { label: `- Remove (${it.qty})`, className: "secondary", onClick: () => { removeFromDeck(store, zone, it.key); autosave(); renderAll(); } },
+        { label: "+ Add", onClick: () => {
+            const r = addToDeck(store, zone, it.card);
+            if (!r.ok) toast("Deck rule", r.reason);
+            autosave();
+            renderAll();
+          }
+        },
+      ]));
+    }
+  };
+
+  renderMap(sBox, "starting", store.deck.starting);
+  renderMap(pBox, "purchase", store.deck.purchase);
+}
+
+function renderFilters() {
+  const types = [...new Set(store.cards.map(c => (c.type || c.cardType || "").trim()).filter(Boolean))].sort();
+  const traits = [...new Set(store.cards.flatMap(c => (c.traits || "").split(/[,;|]/g).map(x => x.trim()).filter(Boolean)))].sort();
+  const sets = [...new Set(store.cards.map(c => c.set).filter(Boolean))].sort();
+
+  fillFilter(el("typeFilter"), types);
+  fillFilter(el("traitFilter"), traits);
+  fillFilter(el("setFilter"), sets);
+}
+
+function labelForAdd(zone, card) {
+  const counts = deckCounts(store);
+  if (zone === "starting" && counts.starting >= 24) return "Starting FULL";
+  const key = `${card.name}||${card.set}`;
+  const cur = zone === "starting"
+    ? (store.deck.starting.get(key)?.qty ?? 0)
+    : (store.deck.purchase.get(key)?.qty ?? 0);
+
+  const base = zone === "starting" ? "Starting" : "Purchase";
+  return cur > 0 ? `${base} (+1, you have ${cur})` : `${base} (+1)`;
+}
+
+function renderCardPool() {
+  const host = el("cardPool");
+  host.innerHTML = "";
+
+  const filtered = store.cards.filter(passesCardPoolFilters);
+  const slice = filtered.slice(0, visiblePool);
+
+  for (const c of slice) {
+    const canStart = canAddToDeck(store, "starting", c);
+    const canBuy = canAddToDeck(store, "purchase", c);
+
+    host.appendChild(makeCardTile(c, [
+      {
+        label: labelForAdd("starting", c),
+        disabled: !canStart.ok,
+        onClick: () => {
+          const r = addToDeck(store, "starting", c);
+          if (!r.ok) toast("Deck rule", r.reason);
+          autosave();
+          renderAll();
+        }
+      },
+      {
+        label: labelForAdd("purchase", c),
+        disabled: !canBuy.ok,
+        onClick: () => {
+          const r = addToDeck(store, "purchase", c);
+          if (!r.ok) toast("Deck rule", r.reason);
+          autosave();
+          renderAll();
+        }
+      },
+    ]));
+  }
+
+  if (filtered.length === 0) host.textContent = "(No cards match filters)";
+}
+
+function renderAll() {
+  setStatus(`Status: Loaded Sets: ${store.sets.length} Cards: ${store.cards.length}`);
+  renderFilters();
+  renderStarterCards();
+  renderDeckLists();
+  renderCardPool();
+}
+
+function autosave() {
+  try { saveToLocal(store); } catch {}
+}
+
+// ----- UI wiring -----
+function wireUI() {
+  const w = el("personaWrestler");
+  const m = el("personaManager");
+  const c = el("personaCallName");
+  const f = el("personaFaction");
+
+  w.onchange = () => { setPersona(store, "Wrestler", w.value); autosave(); renderAll(); };
+  m.onchange = () => { setPersona(store, "Manager", m.value); autosave(); renderAll(); };
+  c.onchange = () => { setPersona(store, "Call Name", c.value); autosave(); renderAll(); };
+  f.onchange = () => { setPersona(store, "Faction", f.value); autosave(); renderAll(); };
+
+  el("clearPersonas").onclick = () => {
+    clearPersonas(store);
+    w.value = ""; m.value = ""; c.value = ""; f.value = "";
+    autosave();
+    renderAll();
+  };
+
+  el("searchInput").oninput = () => { visiblePool = 60; renderCardPool(); };
+  el("typeFilter").onchange = () => { visiblePool = 60; renderCardPool(); };
+  el("traitFilter").onchange = () => { visiblePool = 60; renderCardPool(); };
+  el("setFilter").onchange = () => { visiblePool = 60; renderCardPool(); };
+
+  el("clearFilters").onclick = () => {
+    el("searchInput").value = "";
+    el("typeFilter").value = "All";
+    el("traitFilter").value = "All";
+    el("setFilter").value = "All";
+    visiblePool = 60;
+    renderCardPool();
+  };
+
+  el("showMore").onclick = () => {
+    visiblePool += 60;
+    renderCardPool();
+  };
+
+  el("copyDeckText").onclick = async () => {
+    try {
+      const txt = exportDeckAsText(store);
+      await navigator.clipboard.writeText(txt);
+      toast("Copied", "Deck list (text) copied.");
+    } catch (e) {
+      toast("Copy failed", e?.message || String(e));
+    }
+  };
+
+  el("copyDeckLackey").onclick = async () => {
+    try {
+      const dek = exportDeckAsLackeyDek(store, { game: "AEW", set: "AEW" });
+      await navigator.clipboard.writeText(dek);
+      toast("Copied", "Lackey .dek copied.");
+    } catch (e) {
+      toast("Copy failed", e?.message || String(e));
+    }
+  };
+
+  el("clearDeck").onclick = () => {
+    clearDeck(store);
+    autosave();
+    toast("Deck", "Cleared.");
+    renderAll();
+  };
+
+  el("importDeck").onclick = () => {
+    const t = el("importText").value;
+    const r = importDeckFromAny(store, t);
+    if (!r.ok) toast("Import failed", r.reason);
+    else toast("Imported", "Deck imported.");
+    autosave();
+    renderAll();
+  };
+}
+
+// ----- Boot -----
+async function boot() {
+  try {
+    setStatus(`Status: Loading… Sets: (loading) Cards: (loading)`);
+    wireUI();
+
+    const setFiles = await loadSetList();
+    const rows = await loadAllCardsFromSets(setFiles);
+
+    ingestAllCards(store, rows, setFiles);
+
+    optionize(el("personaWrestler"), store.personas["Wrestler"], "(none)");
+    optionize(el("personaManager"), store.personas["Manager"], "(none)");
+    optionize(el("personaCallName"), store.personas["Call Name"], "(none)");
+    optionize(el("personaFaction"), store.personas["Faction"], "(none)");
+
+    // Restore saved state AFTER cards exist
+    const loaded = loadFromLocal(store);
+    if (loaded.ok && loaded.payload) {
+      applyLocalPayload(store, loaded.payload);
+
+      // Sync dropdown values to restored personas
+      el("personaWrestler").value = store.selectedPersonas["Wrestler"] || "";
+      el("personaManager").value = store.selectedPersonas["Manager"] || "";
+      el("personaCallName").value = store.selectedPersonas["Call Name"] || "";
+      el("personaFaction").value = store.selectedPersonas["Faction"] || "";
+    }
+
+    renderAll();
+    autosave();
+  } catch (e) {
+    failStatus(e, "Boot failed");
+  }
+}
+
+boot();
