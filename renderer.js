@@ -1,31 +1,26 @@
 // FILE: renderer.js
 import { loadAllData } from "./data-loader.js";
 
-function norm(s) { return String(s ?? "").trim(); }
-function getField(row, ...names) {
-  for (const n of names) if (Object.prototype.hasOwnProperty.call(row, n)) return row[n];
+function norm(v) {
+  return String(v == null ? "" : v).trim();
+}
+
+function getField(row, names) {
+  for (var i = 0; i < names.length; i++) {
+    var n = names[i];
+    if (Object.prototype.hasOwnProperty.call(row, n)) return row[n];
+  }
   return "";
 }
 
-function cardName(row) { return norm(getField(row, "Card Name", "Name", "Title")); }
-function cardType(row) { return norm(getField(row, "Type")); }
-function cardSet(row) { return norm(getField(row, "Set")); }
-function cardCost(row) { return norm(getField(row, "Cost", "C")); }
-function cardMomentum(row) { return norm(getField(row, "Momentum", "M")); }
+function cardName(row) { return norm(getField(row, ["Card Name", "Name", "Title"])); }
+function cardType(row) { return norm(getField(row, ["Type"])); }
+function cardSet(row) { return norm(getField(row, ["Set"])); }
+function cardCost(row) { return norm(getField(row, ["Cost", "C"])); }
+function cardMomentum(row) { return norm(getField(row, ["Momentum", "M"])); }
 
 function cardGameText(row) {
-  return norm(getField(
-    row,
-    "Game Text",
-    "Rules Text",
-    "Rules",
-    "Text",
-    "Effect",
-    "Ability",
-    "Abilities",
-    "Card Text",
-    "Text Box"
-  ));
+  return norm(getField(row, ["Game Text", "Rules Text", "Rules", "Text", "Effect", "Ability", "Abilities", "Card Text", "Text Box"]));
 }
 
 function clearEl(el) {
@@ -33,41 +28,46 @@ function clearEl(el) {
 }
 
 function pill(text) {
-  const s = document.createElement("span");
+  var s = document.createElement("span");
   s.className = "pill";
   s.textContent = text;
   return s;
 }
 
 function renderCardTile(row) {
-  const card = document.createElement("div");
+  var card = document.createElement("div");
   card.className = "card";
 
-  const title = document.createElement("div");
+  var title = document.createElement("div");
   title.className = "cardTitle";
   title.textContent = cardName(row);
   card.appendChild(title);
 
-  const meta = document.createElement("div");
+  var meta = document.createElement("div");
   meta.className = "cardMeta";
   meta.appendChild(pill(cardType(row) || "Card"));
 
-  if (cardSet(row)) meta.appendChild(pill(cardSet(row)));
-  if (cardCost(row)) meta.appendChild(pill(`Cost: ${cardCost(row)}`));
-  if (cardMomentum(row)) meta.appendChild(pill(`Momentum: ${cardMomentum(row)}`));
+  var set = cardSet(row);
+  if (set) meta.appendChild(pill(set));
+
+  var cost = cardCost(row);
+  if (cost) meta.appendChild(pill("Cost: " + cost));
+
+  var mom = cardMomentum(row);
+  if (mom) meta.appendChild(pill("Momentum: " + mom));
 
   card.appendChild(meta);
 
-  const text = cardGameText(row);
-  const textDiv = document.createElement("div");
+  var textDiv = document.createElement("div");
   textDiv.className = "cardText";
-  textDiv.textContent = text || "(no game text)";
+  var txt = cardGameText(row);
+  textDiv.textContent = txt || "(no game text)";
   card.appendChild(textDiv);
 
   if (row.__sourceFile) {
-    const src = document.createElement("div");
+    var src = document.createElement("div");
     src.className = "muted cardSmall";
-    src.textContent = `Source: ${row.__sourceFile}`;
+    src.textContent = "Source: " + row.__sourceFile;
     card.appendChild(src);
   }
 
@@ -75,73 +75,73 @@ function renderCardTile(row) {
 }
 
 export async function initApp() {
-  const AEW = window.AEWDBG || {};
-  const setStatus = AEW.setStatus || (() => {});
-  const showError = AEW.showError || (() => {});
+  var AEW = window.AEWDBG || {};
+  var setStatus = AEW.setStatus ? AEW.setStatus : function () {};
+  var showError = AEW.showError ? AEW.showError : function () {};
 
-  const personaSelect = document.getElementById("personaSelect");
-  const starterGrid = document.getElementById("starterGrid");
-  const poolGrid = document.getElementById("poolGrid");
+  var personaSelect = document.getElementById("personaSelect");
+  var starterGrid = document.getElementById("starterGrid");
+  var poolGrid = document.getElementById("poolGrid");
 
   if (!personaSelect || !starterGrid || !poolGrid) {
-    showError("UI init failed", "Missing required DOM elements");
+    showError("UI init failed", "Missing required DOM elements (personaSelect/starterGrid/poolGrid).");
     return;
   }
 
-  let data;
+  var data;
   try {
     data = await loadAllData();
-  } catch {
+  } catch (e) {
     return;
   }
 
-  // Populate persona dropdown (Name only)
+  // Personas: Name only, no type appended
   clearEl(personaSelect);
-  const none = document.createElement("option");
+  var none = document.createElement("option");
   none.value = "";
   none.textContent = "(none)";
   personaSelect.appendChild(none);
 
-  const personaNames = Array.from(
-    new Set(data.personas.map(p => p.name).filter(Boolean))
-  ).sort((a, b) => a.localeCompare(b));
+  var namesSet = new Set();
+  for (var i = 0; i < data.personas.length; i++) {
+    if (data.personas[i].name) namesSet.add(data.personas[i].name);
+  }
+  var names = Array.from(namesSet).sort(function (a, b) { return a.localeCompare(b); });
 
-  for (const name of personaNames) {
-    const opt = document.createElement("option");
-    opt.value = name;
-    opt.textContent = name;
+  for (var j = 0; j < names.length; j++) {
+    var opt = document.createElement("option");
+    opt.value = names[j];
+    opt.textContent = names[j];
     personaSelect.appendChild(opt);
   }
 
-  function renderStarters(name) {
+  function renderStarters(personaName) {
     clearEl(starterGrid);
-    if (!name) {
+    if (!personaName) {
       starterGrid.textContent = "No Persona selected.";
       return;
     }
-
-    const starters = data.startersByPersona.get(name) || [];
+    var starters = data.startersByPersona.get(personaName) || [];
     if (!starters.length) {
-      starterGrid.textContent = "No starter cards found.";
+      starterGrid.textContent = "No starter cards found for this Persona.";
       return;
     }
-
-    for (const r of starters) starterGrid.appendChild(renderCardTile(r));
+    for (var k = 0; k < starters.length; k++) starterGrid.appendChild(renderCardTile(starters[k]));
   }
 
   function renderPool() {
     clearEl(poolGrid);
-    for (const r of data.pool.slice(0, 120)) {
-      poolGrid.appendChild(renderCardTile(r));
-    }
+    var cap = 120;
+    var rows = data.pool.slice(0, cap);
+    for (var k = 0; k < rows.length; k++) poolGrid.appendChild(renderCardTile(rows[k]));
   }
 
-  personaSelect.addEventListener("change", () => {
+  personaSelect.addEventListener("change", function () {
     renderStarters(personaSelect.value);
   });
 
   renderStarters("");
   renderPool();
 
-  setStatus(`Status: Loaded  Sets: ${data.sets.length}  Cards: ${data.allRows.length}`);
+  setStatus("Status: Loaded  Sets: " + data.sets.length + "  Cards: " + data.allRows.length);
 }
