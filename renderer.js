@@ -17,8 +17,23 @@ function cardType(row) { return norm(getField(row, ["Type"])); }
 function cardSet(row) { return norm(getField(row, ["Set"])); }
 function cardCost(row) { return norm(getField(row, ["Cost", "C"])); }
 function cardMomentum(row) { return norm(getField(row, ["Momentum", "M"])); }
+function cardDamage(row) { return norm(getField(row, ["Damage", "D"])); }
+
 function cardText(row) {
   return norm(getField(row, ["Game Text", "Rules Text", "Rules", "Text", "Effect", "Ability", "Abilities", "Card Text", "Text Box"]));
+}
+
+function traitString(row) {
+  return norm(getField(row, ["Traits", "Trait", "Keywords", "Keyword"]));
+}
+
+function splitTraits(s) {
+  var t = norm(s);
+  if (!t) return [];
+  return t
+    .split(/[,;/|]+/g)
+    .map(function (x) { return x.trim(); })
+    .filter(function (x) { return !!x; });
 }
 
 function parseIntSafe(v) {
@@ -36,11 +51,11 @@ function pill(text) {
 }
 
 function isFinisher(row) {
-  var blob = (cardType(row) + " " + cardText(row) + " " + norm(getField(row, ["Keywords", "Keyword", "Traits", "Trait"]))).toLowerCase();
+  var blob = (cardType(row) + " " + cardText(row) + " " + traitString(row)).toLowerCase();
   return blob.indexOf("finisher") >= 0;
 }
 
-function renderCard(row, addButtons) {
+function renderCard(row, buttons) {
   var card = document.createElement("div");
   card.className = "card";
 
@@ -51,6 +66,7 @@ function renderCard(row, addButtons) {
 
   var meta = document.createElement("div");
   meta.className = "cardMeta";
+
   meta.appendChild(pill(cardType(row) || "Card"));
 
   var set = cardSet(row);
@@ -62,15 +78,26 @@ function renderCard(row, addButtons) {
   var mom = cardMomentum(row);
   if (mom) meta.appendChild(pill("Momentum: " + mom));
 
+  var dmg = cardDamage(row);
+  if (dmg) meta.appendChild(pill("Damage: " + dmg));
+
   if (isFinisher(row)) meta.appendChild(pill("Finisher"));
 
   card.appendChild(meta);
 
+  var txt = cardText(row);
   var textDiv = document.createElement("div");
   textDiv.className = "cardText";
-  var txt = cardText(row);
   textDiv.textContent = txt || "(no game text)";
   card.appendChild(textDiv);
+
+  var traits = splitTraits(traitString(row));
+  if (traits.length) {
+    var tr = document.createElement("div");
+    tr.className = "muted cardSmall";
+    tr.textContent = "Traits: " + traits.join(", ");
+    card.appendChild(tr);
+  }
 
   if (row.__sourceFile) {
     var src = document.createElement("div");
@@ -79,13 +106,11 @@ function renderCard(row, addButtons) {
     card.appendChild(src);
   }
 
-  if (addButtons && addButtons.length) {
-    var rowBtns = document.createElement("div");
-    rowBtns.className = "btnRow";
-    for (var i = 0; i < addButtons.length; i++) {
-      rowBtns.appendChild(addButtons[i]);
-    }
-    card.appendChild(rowBtns);
+  if (buttons && buttons.length) {
+    var btnRow = document.createElement("div");
+    btnRow.className = "btnRow";
+    for (var i = 0; i < buttons.length; i++) btnRow.appendChild(buttons[i]);
+    card.appendChild(btnRow);
   }
 
   return card;
@@ -102,18 +127,23 @@ function mkButton(label, onClick, disabled) {
 
 function detectPersonaBucket(typeStr) {
   var t = lower(typeStr);
-
   if (t === "wrestler") return "wrestler";
   if (t === "manager") return "manager";
-
   if (t === "call name" || t === "callname" || t === "call-name") return "call";
   if (t === "faction" || t === "stable" || t === "team" || t === "tag team" || t === "tag-team") return "faction";
-
-  // If your exports use different words, we’ll add them here once you tell me the exact strings.
   return null;
 }
 
-function fillSelect(selectEl, items) {
+function uniqueSorted(arr) {
+  var s = new Set();
+  for (var i = 0; i < arr.length; i++) {
+    var v = norm(arr[i]);
+    if (v) s.add(v);
+  }
+  return Array.from(s).sort(function (a, b) { return a.localeCompare(b); });
+}
+
+function fillPersonaSelect(selectEl, items) {
   clearEl(selectEl);
   var opt0 = document.createElement("option");
   opt0.value = "";
@@ -143,18 +173,7 @@ function fillFilterSelect(selectEl, values) {
   }
 }
 
-function uniqueSorted(arr) {
-  var s = new Set();
-  for (var i = 0; i < arr.length; i++) {
-    var v = norm(arr[i]);
-    if (v) s.add(v);
-  }
-  return Array.from(s).sort(function (a, b) { return a.localeCompare(b); });
-}
-
-function deckKey(row) {
-  return cardName(row);
-}
+function deckKey(row) { return cardName(row); }
 
 export async function initApp() {
   var AEW = window.AEWDBG || {};
@@ -167,11 +186,12 @@ export async function initApp() {
   var factionSelect = document.getElementById("factionSelect");
   var clearPersonasBtn = document.getElementById("clearPersonasBtn");
 
-  var starterWindow = document.getElementById("starterWindow");
-  var poolWindow = document.getElementById("poolWindow");
+  var starterGrid = document.getElementById("starterGrid");
+  var poolGrid = document.getElementById("poolGrid");
 
   var searchInput = document.getElementById("searchInput");
   var typeFilter = document.getElementById("typeFilter");
+  var traitFilter = document.getElementById("traitFilter");
   var setFilter = document.getElementById("setFilter");
   var clearFiltersBtn = document.getElementById("clearFiltersBtn");
   var showMoreBtn = document.getElementById("showMoreBtn");
@@ -190,11 +210,11 @@ export async function initApp() {
     showError("UI init failed", "Missing Persona dropdown elements.");
     return;
   }
-  if (!starterWindow || !poolWindow) {
-    showError("UI init failed", "Missing starterWindow/poolWindow.");
+  if (!starterGrid || !poolGrid) {
+    showError("UI init failed", "Missing starterGrid/poolGrid.");
     return;
   }
-  if (!searchInput || !typeFilter || !setFilter || !clearFiltersBtn || !showMoreBtn || !poolSummary) {
+  if (!searchInput || !typeFilter || !traitFilter || !setFilter || !clearFiltersBtn || !showMoreBtn || !poolSummary) {
     showError("UI init failed", "Missing pool filter controls.");
     return;
   }
@@ -210,25 +230,23 @@ export async function initApp() {
     return;
   }
 
-  // ---- Persona dropdowns (4) ----
+  // Personas into 4 dropdowns
   var buckets = { wrestler: [], manager: [], call: [], faction: [] };
-
   for (var i = 0; i < data.personas.length; i++) {
     var p = data.personas[i];
     var bucket = detectPersonaBucket(p.type);
     if (!bucket) continue;
     buckets[bucket].push(p.name);
   }
+  fillPersonaSelect(wrestlerSelect, uniqueSorted(buckets.wrestler));
+  fillPersonaSelect(managerSelect, uniqueSorted(buckets.manager));
+  fillPersonaSelect(callNameSelect, uniqueSorted(buckets.call));
+  fillPersonaSelect(factionSelect, uniqueSorted(buckets.faction));
 
-  fillSelect(wrestlerSelect, uniqueSorted(buckets.wrestler));
-  fillSelect(managerSelect, uniqueSorted(buckets.manager));
-  fillSelect(callNameSelect, uniqueSorted(buckets.call));
-  fillSelect(factionSelect, uniqueSorted(buckets.faction));
-
-  // ---- Deck state ----
+  // Deck state
   var selected = { wrestler: "", manager: "", call: "", faction: "" };
-  var startingDeck = new Map();   // name -> { row, qty }
-  var purchaseDeck = new Map();   // name -> { row, qty }
+  var startingDeck = new Map();
+  var purchaseDeck = new Map();
 
   function totalCount(map) {
     var n = 0;
@@ -318,7 +336,6 @@ export async function initApp() {
         rowDiv.style.margin = "6px 0";
 
         var left = document.createElement("div");
-        left.innerHTML = "";
         left.textContent = String(it.qty) + "x " + it.name + (isFinisher(it.row) ? " (Finisher)" : "");
 
         var right = document.createElement("div");
@@ -347,7 +364,6 @@ export async function initApp() {
     renderDeckList(purchaseDeck, purchaseDeckWindow, "purchase");
   }
 
-  // ---- Starters window ----
   function collectSelectedPersonaNames() {
     var names = [];
     if (selected.wrestler) names.push(selected.wrestler);
@@ -358,13 +374,13 @@ export async function initApp() {
   }
 
   function renderStarters() {
-    clearEl(starterWindow);
+    clearEl(starterGrid);
     var names = collectSelectedPersonaNames();
     if (!names.length) {
       var m = document.createElement("div");
       m.className = "muted";
       m.textContent = "No Personas selected.";
-      starterWindow.appendChild(m);
+      starterGrid.appendChild(m);
       return;
     }
 
@@ -376,19 +392,19 @@ export async function initApp() {
       h.style.fontWeight = "900";
       h.style.margin = "8px 0";
       h.textContent = personaName;
-      starterWindow.appendChild(h);
+      starterGrid.appendChild(h);
 
       var starters = data.startersByPersona.get(personaName) || [];
       if (!starters.length) {
         var mm = document.createElement("div");
         mm.className = "muted";
         mm.textContent = "(No Starter/Kit cards found for this Persona.)";
-        starterWindow.appendChild(mm);
+        starterGrid.appendChild(mm);
         continue;
       }
 
       for (var j = 0; j < starters.length; j++) {
-        starterWindow.appendChild(renderCard(starters[j], null));
+        starterGrid.appendChild(renderCard(starters[j], null));
         used++;
       }
     }
@@ -397,18 +413,27 @@ export async function initApp() {
       var z = document.createElement("div");
       z.className = "muted";
       z.textContent = "No starter cards found for selected Personas.";
-      starterWindow.appendChild(z);
+      starterGrid.appendChild(z);
     }
   }
 
-  // ---- Pool filtering/window rendering ----
-  var poolLimit = 80;
+  // Filters
+  var poolLimit = 90;
 
   function buildFilterOptions() {
     var types = uniqueSorted(data.pool.map(function (r) { return cardType(r); }));
     var sets = uniqueSorted(data.pool.map(function (r) { return cardSet(r); }));
+
+    var allTraits = [];
+    for (var i = 0; i < data.pool.length; i++) {
+      var list = splitTraits(traitString(data.pool[i]));
+      for (var k = 0; k < list.length; k++) allTraits.push(list[k]);
+    }
+    var traits = uniqueSorted(allTraits);
+
     fillFilterSelect(typeFilter, types);
     fillFilterSelect(setFilter, sets);
+    fillFilterSelect(traitFilter, traits);
   }
 
   function matchesSearch(row, q) {
@@ -417,9 +442,19 @@ export async function initApp() {
     return hay.indexOf(q) >= 0;
   }
 
+  function hasTrait(row, trait) {
+    if (!trait) return true;
+    var list = splitTraits(traitString(row));
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] === trait) return true;
+    }
+    return false;
+  }
+
   function filteredPoolRows() {
     var q = lower(searchInput.value);
     var t = norm(typeFilter.value);
+    var tr = norm(traitFilter.value);
     var s = norm(setFilter.value);
 
     var out = [];
@@ -427,6 +462,7 @@ export async function initApp() {
       var row = data.pool[i];
       if (t && cardType(row) !== t) continue;
       if (s && cardSet(row) !== s) continue;
+      if (tr && !hasTrait(row, tr)) continue;
       if (!matchesSearch(row, q)) continue;
       out.push(row);
     }
@@ -434,7 +470,7 @@ export async function initApp() {
   }
 
   function renderPool() {
-    clearEl(poolWindow);
+    clearEl(poolGrid);
 
     var rows = filteredPoolRows();
     var shown = rows.slice(0, poolLimit);
@@ -445,7 +481,7 @@ export async function initApp() {
       var m = document.createElement("div");
       m.className = "muted";
       m.textContent = "No cards match your filters.";
-      poolWindow.appendChild(m);
+      poolGrid.appendChild(m);
       return;
     }
 
@@ -479,7 +515,7 @@ export async function initApp() {
           renderPool();
         }, !!errBuy));
 
-        poolWindow.appendChild(renderCard(row, btns));
+        poolGrid.appendChild(renderCard(row, btns));
       })();
     }
   }
@@ -493,7 +529,6 @@ export async function initApp() {
     };
   }
 
-  // ---- Export ----
   async function copyText(text) {
     try {
       await navigator.clipboard.writeText(text);
@@ -554,13 +589,11 @@ export async function initApp() {
     return JSON.stringify(payload, null, 2);
   }
 
-  // ---- Persona events ----
   function onPersonaChange() {
     selected.wrestler = wrestlerSelect.value || "";
     selected.manager = managerSelect.value || "";
     selected.call = callNameSelect.value || "";
     selected.faction = factionSelect.value || "";
-
     renderStarters();
     setStatus("Status: Loaded  Sets: " + String(data.sets.length) + "  Cards: " + String(data.allRows.length));
   }
@@ -578,30 +611,30 @@ export async function initApp() {
     onPersonaChange();
   });
 
-  // ---- Pool events ----
   var rerenderPoolDebounced = debounce(function () {
-    poolLimit = 80;
+    poolLimit = 90;
     renderPool();
   }, 120);
 
   searchInput.addEventListener("input", rerenderPoolDebounced);
-  typeFilter.addEventListener("change", function () { poolLimit = 80; renderPool(); });
-  setFilter.addEventListener("change", function () { poolLimit = 80; renderPool(); });
+  typeFilter.addEventListener("change", function () { poolLimit = 90; renderPool(); });
+  traitFilter.addEventListener("change", function () { poolLimit = 90; renderPool(); });
+  setFilter.addEventListener("change", function () { poolLimit = 90; renderPool(); });
 
   clearFiltersBtn.addEventListener("click", function () {
     searchInput.value = "";
     typeFilter.value = "";
+    traitFilter.value = "";
     setFilter.value = "";
-    poolLimit = 80;
+    poolLimit = 90;
     renderPool();
   });
 
   showMoreBtn.addEventListener("click", function () {
-    poolLimit += 80;
+    poolLimit += 90;
     renderPool();
   });
 
-  // ---- Deck events ----
   copyDeckBtn.onclick = function () { copyText(exportDeckText()); };
   copyDeckJsonBtn.onclick = function () { copyText(exportDeckJson()); };
   clearDeckBtn.onclick = function () {
@@ -611,7 +644,7 @@ export async function initApp() {
     renderPool();
   };
 
-  // ---- Initial render ----
+  // Initial render
   buildFilterOptions();
   renderDecks();
   renderStarters();
