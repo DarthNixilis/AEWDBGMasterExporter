@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AEW TCG Deck Builder</title>
+  <title>AEW DBG Master Exporter</title>
   <link rel="stylesheet" href="./style.css" />
 
   <style>
@@ -18,16 +18,35 @@
     select, button, input { font-size: 16px; padding: 10px 12px; }
     input { min-width: min(520px, calc(100vw - 40px)); }
     .muted { color: #666; }
-    h2 { margin-top: 26px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+    h2 { margin-top: 22px; margin-bottom: 10px; }
+    h3 { margin: 14px 0 8px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
     .card { border: 1px solid #ddd; border-radius: 12px; padding: 10px; background: #fff; }
     .pill { display:inline-block; border:1px solid #ddd; border-radius:999px; padding:2px 8px; font-size:12px; margin-right:6px; color:#333; }
     .cardTitle { font-weight: 900; font-size: 16px; margin-bottom: 6px; }
     .cardMeta { margin-bottom: 8px; }
     .cardText { white-space: pre-wrap; word-break: break-word; font-size: 13px; line-height: 1.35; }
     .cardSmall { font-size: 12px; }
-    .spacer { height: 8px; }
+    .window {
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 10px;
+      background: #fafafa;
+      max-height: 62vh;
+      overflow: auto;
+    }
+    .deckWindow {
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 10px;
+      background: #fff;
+      max-height: 48vh;
+      overflow: auto;
+    }
+    .divider { height: 1px; background: #eee; margin: 16px 0; }
+    .btnRow { display:flex; gap:8px; flex-wrap: wrap; margin-top: 10px; }
 
+    /* Toast */
     .toastWrap {
       position: fixed; left: 0; right: 0; bottom: 0;
       display: flex; justify-content: center; pointer-events: none;
@@ -51,69 +70,100 @@
 
 <body>
   <header>
-    <div style="font-size: 22px; font-weight: 900;">Persona <span class="muted" style="font-weight:600;">Card Pool Deck Starting</span></div>
+    <div style="font-size: 22px; font-weight: 900;">Card Pool <span class="muted" style="font-weight:600;">Deck Starting</span></div>
     <div id="statusLine">Status: Loading…  Sets: (loading)  Cards: (loading)</div>
   </header>
 
   <main>
     <p class="muted">
-      Pick a Persona. Their Starter cards (including Kit cards) auto-load using <b>Starting For</b>.
-      Kit cards never appear in Card Pool.
+      Pick Personas. Starter/Kit cards auto-load using <b>Starting For</b>. Kit cards never appear in Card Pool.
     </p>
 
-    <div class="row" style="margin: 12px 0 6px;">
-      <label for="personaSelect">Choose Persona:</label>
-      <select id="personaSelect">
-        <option value="">(loading…)</option>
-      </select>
-      <button id="clearPersonaBtn" type="button">Clear Persona</button>
+    <div class="row">
+      <div class="col">
+        <label for="wrestlerSelect">Wrestler</label>
+        <select id="wrestlerSelect"><option value="">(loading…)</option></select>
+      </div>
+      <div class="col">
+        <label for="managerSelect">Manager</label>
+        <select id="managerSelect"><option value="">(loading…)</option></select>
+      </div>
+      <div class="col">
+        <label for="callNameSelect">Call Name</label>
+        <select id="callNameSelect"><option value="">(loading…)</option></select>
+      </div>
+      <div class="col">
+        <label for="factionSelect">Faction</label>
+        <select id="factionSelect"><option value="">(loading…)</option></select>
+      </div>
+      <div class="col">
+        <label>&nbsp;</label>
+        <button id="clearPersonasBtn" type="button">Clear Personas</button>
+      </div>
     </div>
 
-    <div class="spacer"></div>
+    <div class="divider"></div>
+
+    <h2>Deck Builder</h2>
+    <p class="muted" id="deckRulesLine">
+      Starting Draw Deck: exactly 24 cards (Cost 0 only), max 2 copies per card in Starting.
+      Purchase Deck: at least 36 cards. Max 3 copies total across both decks. Only 1 Finisher total.
+    </p>
+
+    <div class="row">
+      <button id="copyDeckBtn" type="button">Copy deck list</button>
+      <button id="copyDeckJsonBtn" type="button">Copy deck JSON</button>
+      <button id="clearDeckBtn" type="button">Clear deck</button>
+      <span class="muted" id="deckStatusLine"></span>
+    </div>
+
+    <div class="row" style="align-items:flex-start; gap:16px; margin-top: 10px;">
+      <div style="flex:1; min-width: 320px;">
+        <h3>Starting Draw Deck (<span id="startCount">0</span>/24)</h3>
+        <div id="startDeckWindow" class="deckWindow"></div>
+      </div>
+      <div style="flex:1; min-width: 320px;">
+        <h3>Purchase Deck (<span id="purchaseCount">0</span> / 36+)</h3>
+        <div id="purchaseDeckWindow" class="deckWindow"></div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
 
     <div class="col">
-      <label for="searchInput">Search (name + game text):</label>
-      <input id="searchInput" type="search" placeholder="Try: 'Momentum', 'Submission', 'Cheap Pop', etc." />
+      <label for="searchInput">Search Card Pool (name + game text)</label>
+      <input id="searchInput" type="search" placeholder="Try: momentum, submission, cheap pop…" />
     </div>
 
     <div class="row" style="margin-top:10px;">
       <div class="col">
-        <label for="typeFilter">Type:</label>
-        <select id="typeFilter">
-          <option value="">All</option>
-        </select>
+        <label for="typeFilter">Type</label>
+        <select id="typeFilter"><option value="">All</option></select>
       </div>
-
       <div class="col">
-        <label for="setFilter">Set:</label>
-        <select id="setFilter">
-          <option value="">All</option>
-        </select>
+        <label for="setFilter">Set</label>
+        <select id="setFilter"><option value="">All</option></select>
       </div>
-
       <div class="col">
         <label>&nbsp;</label>
         <button id="clearFiltersBtn" type="button">Clear Filters</button>
       </div>
+      <div class="col">
+        <label>&nbsp;</label>
+        <button id="showMoreBtn" type="button">Show more</button>
+      </div>
+      <div class="col">
+        <label>&nbsp;</label>
+        <span class="muted" id="poolSummary"></span>
+      </div>
     </div>
 
-    <p class="muted" id="poolSummary" style="margin-top:10px;">
-      Card Pool excludes any card with <b>Starting For</b> filled, and excludes Kits.
-    </p>
+    <h2>Starter / Kit cards for selected Personas</h2>
+    <div id="starterWindow" class="window"></div>
 
-    <h2>Starter / Kit cards for selected Persona</h2>
-    <div id="starterGrid" class="grid">
+    <h2>General Card Pool</h2>
+    <div id="poolWindow" class="window">
       <div class="muted">Loading…</div>
-    </div>
-
-    <h2>General Card Pool (no Kits, no Starters)</h2>
-    <div id="poolGrid" class="grid">
-      <div class="muted">Loading…</div>
-    </div>
-
-    <div class="row" style="margin: 14px 0 22px;">
-      <button id="showMoreBtn" type="button">Show more</button>
-      <span class="muted" id="showMoreHint"></span>
     </div>
   </main>
 
@@ -136,18 +186,18 @@
   <script>
     // FILE: index.html
     (function () {
-      const statusLine = document.getElementById("statusLine");
+      var statusLine = document.getElementById("statusLine");
 
       function setStatus(text) {
         if (statusLine) statusLine.textContent = text;
       }
 
-      const toastWrap = document.getElementById("toastWrap");
-      const toastTitle = document.getElementById("toastTitle");
-      const toastTime = document.getElementById("toastTime");
-      const toastBody = document.getElementById("toastBody");
-      const toastCopyBtn = document.getElementById("toastCopyBtn");
-      const toastCloseBtn = document.getElementById("toastCloseBtn");
+      var toastWrap = document.getElementById("toastWrap");
+      var toastTitle = document.getElementById("toastTitle");
+      var toastTime = document.getElementById("toastTime");
+      var toastBody = document.getElementById("toastBody");
+      var toastCopyBtn = document.getElementById("toastCopyBtn");
+      var toastCloseBtn = document.getElementById("toastCloseBtn");
 
       function showToast(title, body) {
         toastTitle.textContent = title || "App Error";
@@ -155,34 +205,33 @@
         toastBody.textContent = body || "";
         toastWrap.style.display = "flex";
 
-        toastCopyBtn.onclick = async () => {
-          const text = `${toastTitle.textContent}\n\n${toastBody.textContent}`;
+        toastCopyBtn.onclick = async function () {
+          var text = toastTitle.textContent + "\n\n" + toastBody.textContent;
           try { await navigator.clipboard.writeText(text); } catch (e) {}
         };
-        toastCloseBtn.onclick = () => { toastWrap.style.display = "none"; };
+        toastCloseBtn.onclick = function () { toastWrap.style.display = "none"; };
       }
 
       function showError(title, err) {
-        const msg = err && err.stack ? err.stack : String(err ?? "");
+        var msg = err && err.stack ? err.stack : String(err || "");
         setStatus("Status: ERROR (see popup)  Sets: (loading)  Cards: (loading)");
         try { showToast(title || "App Error", msg); }
         catch (e) { alert((title || "App Error") + "\n\n" + msg); }
       }
 
-      window.AEWDBG = { setStatus, showError };
+      window.AEWDBG = { setStatus: setStatus, showError: showError };
 
-      window.addEventListener("error", (ev) => {
+      window.addEventListener("error", function (ev) {
         showError("Uncaught error", ev.error || ev.message || ev);
       });
-
-      window.addEventListener("unhandledrejection", (ev) => {
+      window.addEventListener("unhandledrejection", function (ev) {
         showError("Unhandled rejection", ev.reason || ev);
       });
 
-      (async () => {
+      (async function () {
         setStatus("Status: Loading…  Sets: (loading)  Cards: (loading)");
         try {
-          const mod = await import("./renderer.js");
+          var mod = await import("./renderer.js");
           if (!mod || typeof mod.initApp !== "function") {
             throw new Error("renderer.js loaded, but did not export initApp()");
           }
