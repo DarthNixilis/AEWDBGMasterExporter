@@ -62,17 +62,43 @@ function startingForNames(row) {
   return splitNames(cell);
 }
 
-function isPersonaType(typeStr) {
-  const t = norm(typeStr).toLowerCase();
-  // Your spec: Persona identity is Name only; "Type" is bookkeeping.
-  // Include Wrestlers, Managers, Call Names, Factions as Persona choices.
-  return (
-    t === "wrestler" ||
-    t === "manager" ||
-    t === "call name" ||
-    t === "callname" ||
-    t === "faction"
-  );
+/**
+ * Persona detection:
+ * Your data is inconsistent across exports. “Starting For” links prove Personas exist,
+ * but their Type strings vary. So we use:
+ * - Known Persona Types (wrestler/manager/call name/faction/etc.)
+ * - OR anything that looks like a Persona flag column
+ */
+function isPersonaRow(row) {
+  const t = norm(cardType(row)).toLowerCase();
+
+  // common known persona-like types
+  const known = new Set([
+    "wrestler",
+    "manager",
+    "call name",
+    "callname",
+    "call-name",
+    "faction",
+    "stable",
+    "tag team",
+    "tag-team",
+    "team",
+  ]);
+  if (known.has(t)) return true;
+
+  // some exports use a Persona flag column
+  const personaFlag = getField(row, "Persona", "Is Persona", "Persona Card");
+  if (truthyCell(personaFlag)) return true;
+
+  // fallback heuristic: if it has a Persona-like stat block field (very common on persona cards)
+  // (These are safe checks; if missing, they just return "")
+  const hasStamina = norm(getField(row, "Stamina", "STA")) !== "";
+  const hasHold = norm(getField(row, "Hold")) !== "";
+  const hasPop = norm(getField(row, "Pop", "Popularity")) !== "";
+  if ((hasStamina && hasHold) || (hasStamina && hasPop)) return true;
+
+  return false;
 }
 
 export async function loadAllData() {
@@ -107,14 +133,11 @@ export async function loadAllData() {
       allRows.push(...rows);
     }
 
-    // Personas = Wrestler/Manager/Call Name/Faction
-    // Identity = Name ONLY (renderer handles display)
     const personas = allRows
-      .filter(r => isPersonaType(cardType(r)))
+      .filter(r => isPersonaRow(r))
       .map(r => ({ name: cardName(r), type: cardType(r), row: r }))
       .filter(p => p.name);
 
-    // Starters map using "Starting For"
     const startersByPersona = new Map();
     for (const row of allRows) {
       const nm = cardName(row);
@@ -130,11 +153,11 @@ export async function loadAllData() {
     }
 
     // Pool rules:
-    // - Exclude any Persona cards (Wrestler/Manager/Call Name/Faction)
+    // - Exclude Personas (any detected)
     // - Exclude Kits
     // - Exclude anything with Starting For filled
     const pool = allRows.filter(row => {
-      if (isPersonaType(cardType(row))) return false;
+      if (isPersonaRow(row)) return false;
       if (isKit(row)) return false;
       if (startingForNames(row).length) return false;
       return true;
@@ -144,12 +167,12 @@ export async function loadAllData() {
 
     setStatus(`Status: Loaded  Sets: ${sets.length}  Cards: ${allRows.length}`);
 
-    return { sets, allRows, personas, pool, startersByPersona };
+    return {
+      sets,
+      allRows,
+      personas,
+      pool,
+      startersByPersona
+    };
   } catch (err) {
-    showError(
-      "Data load failed (fetch/parse). Usually a bad path or missing setList.txt / TSV.",
-      err
-    );
-    throw err;
-  }
-}
+    showError("Data
