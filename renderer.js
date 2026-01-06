@@ -1,5 +1,5 @@
 // FILE: renderer.js
-// File import + compact add buttons: "Starting [n]" / "Purchase [n]" with FULL states.
+// Export warnings (non-blocking) + compact add buttons remain.
 
 import { loadSetList, loadAllCardsFromSets } from "./data-loader.js";
 import {
@@ -10,6 +10,7 @@ import {
   importDeckFromAny,
   canAddToDeck,
   saveToLocal, loadFromLocal, applyLocalPayload,
+  getDeckWarnings,
 } from "./store.js";
 
 const store = createStore();
@@ -183,8 +184,8 @@ function renderDeckLists() {
   pBox.innerHTML = "";
 
   const counts = deckCounts(store);
-  el("startingDeckTitle").textContent = `Starting Draw Deck (${counts.starting}/24)`;
-  el("purchaseDeckTitle").textContent = `Purchase Deck (${counts.purchase} / 36+)`;
+  el("startingDeckTitle").textContent = `Starting Draw Deck (${counts.starting}/24 target)`;
+  el("purchaseDeckTitle").textContent = `Purchase Deck (${counts.purchase} / 36+ target)`;
 
   const renderMap = (box, zone, map) => {
     const items = [...map.entries()]
@@ -229,7 +230,6 @@ function zoneCount(zone, card) {
 
 function addButtonLabel(zone, card) {
   const base = zone === "starting" ? "Starting" : "Purchase";
-  if (zone === "starting" && deckCounts(store).starting >= 24) return `${base} FULL`;
   const n = zoneCount(zone, card);
   return `${base} [${n}]`;
 }
@@ -289,10 +289,16 @@ async function readSelectedFileText() {
   const input = el("importFile");
   const f = input?.files?.[0];
   if (!f) return { ok: false, reason: "No file selected." };
-
-  // Android sometimes gives no extension; we just read it anyway.
   const text = await f.text();
   return { ok: true, name: f.name || "(file)", text };
+}
+
+// ----- Export warning helper -----
+function maybeWarnIllegalDeck() {
+  const warnings = getDeckWarnings(store);
+  if (warnings.length) {
+    toast("Deck reminder (still exporting)", warnings.join("\n"));
+  }
 }
 
 // ----- UI wiring -----
@@ -335,6 +341,7 @@ function wireUI() {
 
   el("copyDeckText").onclick = async () => {
     try {
+      maybeWarnIllegalDeck();
       const txt = exportDeckAsText(store);
       await navigator.clipboard.writeText(txt);
       toast("Copied", "Deck list (text) copied.");
@@ -345,6 +352,7 @@ function wireUI() {
 
   el("copyDeckLackey").onclick = async () => {
     try {
+      maybeWarnIllegalDeck();
       const dek = exportDeckAsLackeyDek(store, { game: "AEW", set: "AEW" });
       await navigator.clipboard.writeText(dek);
       toast("Copied", "Lackey .dek copied.");
@@ -396,7 +404,6 @@ async function boot() {
     optionize(el("personaCallName"), store.personas["Call Name"], "(none)");
     optionize(el("personaFaction"), store.personas["Faction"], "(none)");
 
-    // Restore saved state AFTER cards exist
     const loaded = loadFromLocal(store);
     if (loaded.ok && loaded.payload) {
       applyLocalPayload(store, loaded.payload);

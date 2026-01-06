@@ -1,5 +1,7 @@
 // FILE: store.js
 // State + rules + export/import + localStorage persistence.
+// IMPORTANT: Starting deck is NOT hard-capped at 24 during building.
+// Legality is warned on export only.
 
 function norm(s) { return (s ?? "").toString().trim(); }
 function splitList(s) {
@@ -158,12 +160,11 @@ export function canAddToDeck(store, zone, card) {
   // finisher
   if (isFinisher(card) && countFinishers(store) >= 1) return { ok: false, reason: "Only 1 Finisher total." };
 
-  // starting rules
+  // starting rules (NO total-card hard cap)
   if (zone === "starting") {
     const cur = store.deck.starting.get(cardKey)?.qty ?? 0;
     if (!cardCostIsZero(card)) return { ok: false, reason: "Starting can only include Cost 0." };
     if (cur >= 2) return { ok: false, reason: "Max 2 copies in Starting." };
-    if (deckCounts(store).starting >= 24) return { ok: false, reason: "Starting deck is full (24)." };
   }
 
   return { ok: true };
@@ -195,6 +196,29 @@ export function clearDeck(store) {
   store.deck.purchase.clear();
 }
 
+// ---------- Legality warnings (non-blocking) ----------
+export function getDeckWarnings(store) {
+  const w = [];
+  const counts = deckCounts(store);
+
+  if (counts.starting !== 24) w.push(`Starting Draw Deck should be exactly 24 cards (currently ${counts.starting}).`);
+  if (counts.purchase < 36) w.push(`Purchase Deck should be at least 36 cards (currently ${counts.purchase}).`);
+
+  // finisher
+  const fin = countFinishers(store);
+  if (fin > 1) w.push(`Only 1 Finisher total allowed (currently ${fin}).`);
+
+  // Starting cost 0 check is already enforced on add, but warn if imported junk slipped in.
+  for (const v of store.deck.starting.values()) {
+    if (!cardCostIsZero(v.card)) {
+      w.push(`Starting contains non-zero Cost card: "${v.card.name}" (Cost ${v.card.cost || "?"}).`);
+      break;
+    }
+  }
+
+  return w;
+}
+
 // ---------- Export formats ----------
 function sortDeckMap(map) {
   return [...map.values()].sort((a, b) => a.card.name.localeCompare(b.card.name));
@@ -203,7 +227,6 @@ function sortDeckMap(map) {
 export function exportDeckAsText(store) {
   const lines = [];
 
-  // Main block = Starting Draw Deck
   for (const { card, qty } of sortDeckMap(store.deck.starting)) {
     lines.push(`${qty}\t${card.name}`);
   }
@@ -244,7 +267,6 @@ export function exportDeckAsLackeyDek(store, opts = {}) {
     return out.join("\n");
   };
 
-  // Lackey "Starting" zone = personas/starter cards (1 each)
   const startingZoneCards = store.starterCards.map(c =>
     `\t\t<card><name id="${xmlEscape(c.imageId)}">${xmlEscape(c.name)}</name><set>${xmlEscape(setName)}</set></card>`
   ).join("\n");
@@ -413,28 +435,20 @@ export function saveToLocal(store) {
 export function loadFromLocal(store) {
   const raw = localStorage.getItem(LS_KEY);
   if (!raw) return { ok: false, reason: "No saved state." };
-
   const payload = JSON.parse(raw);
-  if (payload.selectedPersonas) store.selectedPersonas = payload.selectedPersonas;
-
-  // restore starterCards by best-effort match once cards exist
-  // restore decks by name+set match once cards exist
   return { ok: true, payload };
 }
 
 export function applyLocalPayload(store, payload) {
-  // assumes store.cards already loaded
   const findByNameSet = (name, set) =>
     store.cards.find(c => c.name === name && c.set === set) ||
     store.cards.find(c => c.name === name) || null;
 
-  // personas
   if (payload.selectedPersonas) {
     store.selectedPersonas = payload.selectedPersonas;
     recomputeStarterCards(store);
   }
 
-  // starters override if present
   if (Array.isArray(payload.starter) && payload.starter.length) {
     const uniq = new Map();
     for (const it of payload.starter) {
