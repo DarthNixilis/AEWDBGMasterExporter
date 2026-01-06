@@ -13,6 +13,22 @@ function cardSet(row) { return norm(getField(row, "Set")); }
 function cardCost(row) { return norm(getField(row, "Cost")); }
 function cardMomentum(row) { return norm(getField(row, "Momentum")); }
 
+// Game text can be under different headers depending on export version.
+// We’ll display the first non-empty one.
+function cardGameText(row) {
+  return norm(getField(
+    row,
+    "Game Text",
+    "Rules Text",
+    "Rules",
+    "Text",
+    "Effect",
+    "Ability",
+    "Abilities",
+    "Card Text"
+  ));
+}
+
 function escapeHtml(str) {
   return String(str ?? "")
     .replaceAll("&", "&amp;")
@@ -30,42 +46,44 @@ function renderCardTile(row) {
   const set = cardSet(row);
   const cost = cardCost(row);
   const mom = cardMomentum(row);
+  const text = cardGameText(row);
 
   const div = document.createElement("div");
   div.className = "card";
   div.innerHTML = `
-    <div style="font-weight:900; font-size:16px; margin-bottom:6px;">${escapeHtml(name)}</div>
-    <div style="margin-bottom:6px;">
+    <div class="cardTitle">${escapeHtml(name)}</div>
+    <div class="cardMeta">
       <span class="pill">${escapeHtml(type)}</span>
       ${set ? `<span class="pill">${escapeHtml(set)}</span>` : ""}
+      ${cost ? `<span class="pill">Cost: ${escapeHtml(cost)}</span>` : ""}
+      ${mom ? `<span class="pill">Momentum: ${escapeHtml(mom)}</span>` : ""}
     </div>
-    <div class="muted" style="font-size:13px;">
-      ${cost ? `Cost: <b>${escapeHtml(cost)}</b>` : ""}
-      ${mom ? ` &nbsp; Momentum: <b>${escapeHtml(mom)}</b>` : ""}
-      ${row.__sourceFile ? `<div style="margin-top:6px;">Source: <code>${escapeHtml(row.__sourceFile)}</code></div>` : ""}
-    </div>
+    ${text ? `<div class="cardText">${escapeHtml(text)}</div>` : `<div class="muted cardSmall">(no game text column found for this card)</div>`}
+    ${row.__sourceFile ? `<div class="muted cardSmall" style="margin-top:8px;">Source: <code>${escapeHtml(row.__sourceFile)}</code></div>` : ""}
   `;
   return div;
 }
 
-function renderPool(poolRows, gridEl) {
-  clearEl(gridEl);
-
-  if (!poolRows.length) {
-    gridEl.innerHTML = `<div class="muted">No pool cards after exclusions. Check your Kit flag and Starting For usage.</div>`;
-    return;
+function buildTypeOptions(rows) {
+  const set = new Set();
+  for (const r of rows) {
+    const t = cardType(r);
+    if (t) set.add(t);
   }
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
 
-  const MAX = 140;
-  const rows = poolRows.slice(0, MAX);
+function buildSetOptions(rows) {
+  const set = new Set();
+  for (const r of rows) {
+    const s = cardSet(r);
+    if (s) set.add(s);
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
 
-  const info = document.createElement("div");
-  info.className = "muted";
-  info.style.gridColumn = "1 / -1";
-  info.innerHTML = `Showing <b>${rows.length}</b> of <b>${poolRows.length}</b> pool cards (mobile cap).`;
-  gridEl.appendChild(info);
-
-  for (const r of rows) gridEl.appendChild(renderCardTile(r));
+function normalizeSearch(s) {
+  return norm(s).toLowerCase();
 }
 
 export async function initApp() {
@@ -78,7 +96,15 @@ export async function initApp() {
   const starterGrid = document.getElementById("starterGrid");
   const poolGrid = document.getElementById("poolGrid");
 
-  if (!personaSelect || !starterGrid || !poolGrid) {
+  const searchInput = document.getElementById("searchInput");
+  const typeFilter = document.getElementById("typeFilter");
+  const setFilter = document.getElementById("setFilter");
+  const clearFiltersBtn = document.getElementById("clearFiltersBtn");
+  const poolSummary = document.getElementById("poolSummary");
+  const showMoreBtn = document.getElementById("showMoreBtn");
+  const showMoreHint = document.getElementById("showMoreHint");
+
+  if (!personaSelect || !starterGrid || !poolGrid || !searchInput || !typeFilter || !setFilter || !poolSummary || !showMoreBtn || !showMoreHint) {
     showError("UI init failed", new Error("Missing required DOM elements. Check index.html IDs."));
     return;
   }
@@ -87,12 +113,12 @@ export async function initApp() {
   try {
     data = await loadAllData();
   } catch (e) {
-    // loadAllData already popped error
     return;
   }
 
-  // Persona identity = Name only, no type suffix
-  const personaNames = data.personas.map(p => p.name).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  // Persona dropdown: NAME ONLY (no type appended)
+  const personaNames = Array.from(new Set(data.personas.map(p => p.name).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b));
 
   clearEl(personaSelect);
   const noneOpt = document.createElement("option");
@@ -103,25 +129,56 @@ export async function initApp() {
   for (const nm of personaNames) {
     const opt = document.createElement("option");
     opt.value = nm;
-    opt.textContent = nm;
+    opt.textContent = nm; // Name only
     personaSelect.appendChild(opt);
   }
 
-  renderPool(data.pool, poolGrid);
-  renderStarters("");
+  // Build filter dropdown options from pool
+  fillSelect(typeFilter, ["", ...buildTypeOptions(data.pool)], (v) => v || "All");
+  fillSelect(setFilter, ["", ...buildSetOptions(data.pool)], (v) => v || "All");
 
-  personaSelect.addEventListener("change", () => {
-    renderStarters(personaSelect.value);
-    setStatus(`Status: Loaded  Sets: ${data.sets.length}  Cards: ${data.allRows.length}  Persona: ${personaSelect.value || "(none)"}`);
-  });
+  // Pool rendering state
+  let poolLimit = 140;
 
-  clearPersonaBtn?.addEventListener("click", () => {
-    personaSelect.value = "";
-    renderStarters("");
-    setStatus(`Status: Loaded  Sets: ${data.sets.length}  Cards: ${data.allRows.length}  Persona: (none)`);
-  });
+  function filteredPoolRows() {
+    const q = normalizeSearch(searchInput.value);
+    const t = norm(typeFilter.value);
+    const s = norm(setFilter.value);
 
-  setStatus(`Status: Loaded  Sets: ${data.sets.length}  Cards: ${data.allRows.length}`);
+    return data.pool.filter(row => {
+      if (t && cardType(row) !== t) return false;
+      if (s && cardSet(row) !== s) return false;
+      if (!q) return true;
+
+      const hay = (cardName(row) + "\n" + cardGameText(row)).toLowerCase();
+      return hay.includes(q);
+    });
+  }
+
+  function renderPool() {
+    const rows = filteredPoolRows();
+    clearEl(poolGrid);
+
+    if (!rows.length) {
+      poolGrid.innerHTML = `<div class="muted">No cards match your filters.</div>`;
+      poolSummary.innerHTML = `0 matches. (Pool excludes Kits + anything with Starting For.)`;
+      showMoreHint.textContent = "";
+      return;
+    }
+
+    const shown = rows.slice(0, poolLimit);
+    poolSummary.innerHTML = `<b>${rows.length}</b> match(es). (Pool excludes Kits + anything with Starting For.)`;
+
+    for (const r of shown) poolGrid.appendChild(renderCardTile(r));
+
+    if (shown.length < rows.length) {
+      showMoreHint.textContent = `Showing ${shown.length} of ${rows.length}.`;
+      showMoreBtn.disabled = false;
+    } else {
+      showMoreHint.textContent = `Showing all ${rows.length}.`;
+      showMoreBtn.disabled = true;
+    }
+  }
 
   function renderStarters(personaName) {
     clearEl(starterGrid);
@@ -152,5 +209,62 @@ export async function initApp() {
     });
 
     for (const r of sorted) starterGrid.appendChild(renderCardTile(r));
+  }
+
+  // Events
+  personaSelect.addEventListener("change", () => {
+    renderStarters(personaSelect.value);
+    setStatus(`Status: Loaded  Sets: ${data.sets.length}  Cards: ${data.allRows.length}  Persona: ${personaSelect.value || "(none)"}`);
+  });
+
+  clearPersonaBtn?.addEventListener("click", () => {
+    personaSelect.value = "";
+    renderStarters("");
+    setStatus(`Status: Loaded  Sets: ${data.sets.length}  Cards: ${data.allRows.length}  Persona: (none)`);
+  });
+
+  const rerenderWithDebounce = debounce(() => {
+    poolLimit = 140;
+    renderPool();
+  }, 120);
+
+  searchInput.addEventListener("input", rerenderWithDebounce);
+  typeFilter.addEventListener("change", () => { poolLimit = 140; renderPool(); });
+  setFilter.addEventListener("change", () => { poolLimit = 140; renderPool(); });
+
+  clearFiltersBtn?.addEventListener("click", () => {
+    searchInput.value = "";
+    typeFilter.value = "";
+    setFilter.value = "";
+    poolLimit = 140;
+    renderPool();
+  });
+
+  showMoreBtn.addEventListener("click", () => {
+    poolLimit += 140;
+    renderPool();
+  });
+
+  // Initial render
+  renderStarters("");
+  renderPool();
+  setStatus(`Status: Loaded  Sets: ${data.sets.length}  Cards: ${data.allRows.length}`);
+
+  function fillSelect(selectEl, values, labeler) {
+    clearEl(selectEl);
+    for (const v of values) {
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = labeler(v);
+      selectEl.appendChild(opt);
+    }
+  }
+
+  function debounce(fn, ms) {
+    let t = null;
+    return (...args) => {
+      if (t) clearTimeout(t);
+      t = setTimeout(() => fn(...args), ms);
+    };
   }
 }

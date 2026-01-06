@@ -1,4 +1,3 @@
-
 <!-- FILE: index.html -->
 <!doctype html>
 <html lang="en">
@@ -14,12 +13,21 @@
     #statusLine { font-size: 14px; color: #222; }
     main { padding: 16px; max-width: 980px; margin: 0 auto; }
     .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-    select, button { font-size: 16px; padding: 10px 12px; }
+    .col { display:flex; flex-direction:column; gap:6px; }
+    label { font-weight: 800; }
+    select, button, input { font-size: 16px; padding: 10px 12px; }
+    input { min-width: min(520px, calc(100vw - 40px)); }
     .muted { color: #666; }
     h2 { margin-top: 26px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #fff; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 10px; background: #fff; }
     .pill { display:inline-block; border:1px solid #ddd; border-radius:999px; padding:2px 8px; font-size:12px; margin-right:6px; color:#333; }
+    .cardTitle { font-weight: 900; font-size: 16px; margin-bottom: 6px; }
+    .cardMeta { margin-bottom: 8px; }
+    .cardText { white-space: pre-wrap; word-break: break-word; font-size: 13px; line-height: 1.35; }
+    .cardSmall { font-size: 12px; }
+    .spacer { height: 8px; }
+
     .toastWrap {
       position: fixed; left: 0; right: 0; bottom: 0;
       display: flex; justify-content: center; pointer-events: none;
@@ -54,14 +62,42 @@
     </p>
 
     <div class="row" style="margin: 12px 0 6px;">
-      <label for="personaSelect" style="font-weight: 800;">Choose Persona:</label>
+      <label for="personaSelect">Choose Persona:</label>
       <select id="personaSelect">
         <option value="">(loading…)</option>
       </select>
       <button id="clearPersonaBtn" type="button">Clear Persona</button>
     </div>
 
-    <p class="muted">
+    <div class="spacer"></div>
+
+    <div class="col">
+      <label for="searchInput">Search (name + game text):</label>
+      <input id="searchInput" type="search" placeholder="Try: 'Momentum', 'Submission', 'Cheap Pop', etc." />
+    </div>
+
+    <div class="row" style="margin-top:10px;">
+      <div class="col">
+        <label for="typeFilter">Type:</label>
+        <select id="typeFilter">
+          <option value="">All</option>
+        </select>
+      </div>
+
+      <div class="col">
+        <label for="setFilter">Set:</label>
+        <select id="setFilter">
+          <option value="">All</option>
+        </select>
+      </div>
+
+      <div class="col">
+        <label>&nbsp;</label>
+        <button id="clearFiltersBtn" type="button">Clear Filters</button>
+      </div>
+    </div>
+
+    <p class="muted" id="poolSummary" style="margin-top:10px;">
       Card Pool excludes any card with <b>Starting For</b> filled, and excludes Kits.
     </p>
 
@@ -73,6 +109,11 @@
     <h2>General Card Pool (no Kits, no Starters)</h2>
     <div id="poolGrid" class="grid">
       <div class="muted">Loading…</div>
+    </div>
+
+    <div class="row" style="margin: 14px 0 22px;">
+      <button id="showMoreBtn" type="button">Show more</button>
+      <span class="muted" id="showMoreHint"></span>
     </div>
   </main>
 

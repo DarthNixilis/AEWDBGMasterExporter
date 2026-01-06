@@ -62,13 +62,25 @@ function startingForNames(row) {
   return splitNames(cell);
 }
 
+function isPersonaType(typeStr) {
+  const t = norm(typeStr).toLowerCase();
+  // Your spec: Persona identity is Name only; "Type" is bookkeeping.
+  // Include Wrestlers, Managers, Call Names, Factions as Persona choices.
+  return (
+    t === "wrestler" ||
+    t === "manager" ||
+    t === "call name" ||
+    t === "callname" ||
+    t === "faction"
+  );
+}
+
 export async function loadAllData() {
   const AEW = window.AEWDBG || {};
   const setStatus = AEW.setStatus ? AEW.setStatus : () => {};
   const showError = AEW.showError ? AEW.showError : () => {};
 
   try {
-    // GitHub Pages safe: always relative, never "/sets/..."
     const setListPath = "./sets/setList.txt";
 
     setStatus("Status: Loading…  Sets: (loading)  Cards: (loading)");
@@ -95,14 +107,14 @@ export async function loadAllData() {
       allRows.push(...rows);
     }
 
+    // Personas = Wrestler/Manager/Call Name/Faction
+    // Identity = Name ONLY (renderer handles display)
     const personas = allRows
-      .filter(r => {
-        const t = cardType(r).toLowerCase();
-        return t === "wrestler" || t === "manager";
-      })
+      .filter(r => isPersonaType(cardType(r)))
       .map(r => ({ name: cardName(r), type: cardType(r), row: r }))
       .filter(p => p.name);
 
+    // Starters map using "Starting For"
     const startersByPersona = new Map();
     for (const row of allRows) {
       const nm = cardName(row);
@@ -117,9 +129,12 @@ export async function loadAllData() {
       }
     }
 
+    // Pool rules:
+    // - Exclude any Persona cards (Wrestler/Manager/Call Name/Faction)
+    // - Exclude Kits
+    // - Exclude anything with Starting For filled
     const pool = allRows.filter(row => {
-      const t = cardType(row).toLowerCase();
-      if (t === "wrestler" || t === "manager") return false;
+      if (isPersonaType(cardType(row))) return false;
       if (isKit(row)) return false;
       if (startingForNames(row).length) return false;
       return true;
@@ -132,7 +147,7 @@ export async function loadAllData() {
     return { sets, allRows, personas, pool, startersByPersona };
   } catch (err) {
     showError(
-      "Data load failed (fetch/parse). This is usually a bad path or missing setList.txt / TSV.",
+      "Data load failed (fetch/parse). Usually a bad path or missing setList.txt / TSV.",
       err
     );
     throw err;
