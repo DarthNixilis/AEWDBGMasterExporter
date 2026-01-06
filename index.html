@@ -24,7 +24,7 @@
     button:disabled { opacity: .55; cursor:not-allowed; }
     .hint { color:var(--muted); font-size:13px; line-height:1.35; }
 
-    /* Force grids (override any old style.css nonsense) */
+    /* Force grids */
     #starterCards.grid3, #cardPool.grid3 { display:grid !important; gap:10px !important; grid-template-columns: 1fr !important; }
     @media (min-width: 720px) { #starterCards.grid3, #cardPool.grid3 { grid-template-columns: repeat(2, 1fr) !important; } }
     @media (min-width: 980px) { #starterCards.grid3, #cardPool.grid3 { grid-template-columns: repeat(3, 1fr) !important; } }
@@ -56,12 +56,16 @@
     .toastMsg { margin-top:8px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; white-space:pre-wrap; }
     .toastBtns { display:flex; gap:8px; margin-top:10px; justify-content:flex-end; flex-wrap:wrap; }
     .toastBtns button { width:auto; background:#fff; border:none; border-radius:12px; padding:8px 12px; font-weight:900; }
+
+    /* File picker row */
+    .fileRow { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .fileRow input[type="file"] { width:100%; }
   </style>
 </head>
 <body>
   <header>
     <h1>Deck Starting</h1>
-    <div class="build" id="buildLine">BUILD: 2026-01-06 / Lackey export + counts + local save + forced grids</div>
+    <div class="build" id="buildLine">BUILD: 2026-01-06 / file import + compact add buttons</div>
     <div class="status" id="statusLine">Status: Loading… Sets: (loading) Cards: (loading)</div>
   </header>
 
@@ -111,16 +115,14 @@
         <button id="clearDeck" class="danger">Clear deck</button>
       </div>
 
-      <div class="row" style="margin-top:10px;">
-        <div>
-          <label for="importText">Import deck (paste any exporter format)</label>
-          <textarea id="importText" rows="4" placeholder="Paste text list, Lackey .dek XML, or JSON here"></textarea>
+      <div style="margin-top:10px;">
+        <label>Import deck from file</label>
+        <div class="fileRow" style="margin-top:6px;">
+          <input id="importFile" type="file" accept=".txt,.dek,.json,.xml,text/plain,application/json,text/xml,application/xml" />
+          <button id="importDeck" class="secondary" style="width:auto;">Import file</button>
         </div>
-      </div>
-
-      <div class="btnRow" style="margin-top:8px;">
-        <button id="importDeck" class="secondary">Import</button>
-        <span class="mini" id="saveHint">Auto-saved locally.</span>
+        <div class="mini" id="importFileName">(no file selected)</div>
+        <div class="mini" id="saveHint">Auto-saved locally.</div>
       </div>
 
       <div class="deckCols" style="margin-top:12px;">

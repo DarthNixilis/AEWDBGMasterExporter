@@ -1,5 +1,5 @@
 // FILE: renderer.js
-// UI glue + button labels (counts + FULL) + local autosave + forced Lackey export.
+// File import + compact add buttons: "Starting [n]" / "Purchase [n]" with FULL states.
 
 import { loadSetList, loadAllCardsFromSets } from "./data-loader.js";
 import {
@@ -13,7 +13,6 @@ import {
 } from "./store.js";
 
 const store = createStore();
-
 const el = (id) => document.getElementById(id);
 
 function nowTime() {
@@ -202,14 +201,8 @@ function renderDeckLists() {
 
     for (const it of items) {
       box.appendChild(makeCardTile(it.card, [
-        { label: `- Remove (${it.qty})`, className: "secondary", onClick: () => { removeFromDeck(store, zone, it.key); autosave(); renderAll(); } },
-        { label: "+ Add", onClick: () => {
-            const r = addToDeck(store, zone, it.card);
-            if (!r.ok) toast("Deck rule", r.reason);
-            autosave();
-            renderAll();
-          }
-        },
+        { label: `Remove (${it.qty})`, className: "secondary", onClick: () => { removeFromDeck(store, zone, it.key); autosave(); renderAll(); } },
+        { label: `Add`, onClick: () => { const r = addToDeck(store, zone, it.card); if (!r.ok) toast("Deck rule", r.reason); autosave(); renderAll(); } },
       ]));
     }
   };
@@ -228,16 +221,17 @@ function renderFilters() {
   fillFilter(el("setFilter"), sets);
 }
 
-function labelForAdd(zone, card) {
-  const counts = deckCounts(store);
-  if (zone === "starting" && counts.starting >= 24) return "Starting FULL";
+function zoneCount(zone, card) {
   const key = `${card.name}||${card.set}`;
-  const cur = zone === "starting"
-    ? (store.deck.starting.get(key)?.qty ?? 0)
-    : (store.deck.purchase.get(key)?.qty ?? 0);
+  const map = zone === "starting" ? store.deck.starting : store.deck.purchase;
+  return map.get(key)?.qty ?? 0;
+}
 
+function addButtonLabel(zone, card) {
   const base = zone === "starting" ? "Starting" : "Purchase";
-  return cur > 0 ? `${base} (+1, you have ${cur})` : `${base} (+1)`;
+  if (zone === "starting" && deckCounts(store).starting >= 24) return `${base} FULL`;
+  const n = zoneCount(zone, card);
+  return `${base} [${n}]`;
 }
 
 function renderCardPool() {
@@ -253,7 +247,7 @@ function renderCardPool() {
 
     host.appendChild(makeCardTile(c, [
       {
-        label: labelForAdd("starting", c),
+        label: addButtonLabel("starting", c),
         disabled: !canStart.ok,
         onClick: () => {
           const r = addToDeck(store, "starting", c);
@@ -263,7 +257,7 @@ function renderCardPool() {
         }
       },
       {
-        label: labelForAdd("purchase", c),
+        label: addButtonLabel("purchase", c),
         disabled: !canBuy.ok,
         onClick: () => {
           const r = addToDeck(store, "purchase", c);
@@ -288,6 +282,17 @@ function renderAll() {
 
 function autosave() {
   try { saveToLocal(store); } catch {}
+}
+
+// ----- File import -----
+async function readSelectedFileText() {
+  const input = el("importFile");
+  const f = input?.files?.[0];
+  if (!f) return { ok: false, reason: "No file selected." };
+
+  // Android sometimes gives no extension; we just read it anyway.
+  const text = await f.text();
+  return { ok: true, name: f.name || "(file)", text };
 }
 
 // ----- UI wiring -----
@@ -355,13 +360,23 @@ function wireUI() {
     renderAll();
   };
 
-  el("importDeck").onclick = () => {
-    const t = el("importText").value;
-    const r = importDeckFromAny(store, t);
-    if (!r.ok) toast("Import failed", r.reason);
-    else toast("Imported", "Deck imported.");
-    autosave();
-    renderAll();
+  el("importFile").onchange = () => {
+    const f = el("importFile")?.files?.[0];
+    el("importFileName").textContent = f ? `Selected: ${f.name || "(file)"}` : "(no file selected)";
+  };
+
+  el("importDeck").onclick = async () => {
+    try {
+      const r = await readSelectedFileText();
+      if (!r.ok) { toast("Import", r.reason); return; }
+      const out = importDeckFromAny(store, r.text);
+      if (!out.ok) toast("Import failed", out.reason);
+      else toast("Imported", `Imported from ${r.name}`);
+      autosave();
+      renderAll();
+    } catch (e) {
+      toast("Import failed", e?.message || String(e));
+    }
   };
 }
 
@@ -385,8 +400,6 @@ async function boot() {
     const loaded = loadFromLocal(store);
     if (loaded.ok && loaded.payload) {
       applyLocalPayload(store, loaded.payload);
-
-      // Sync dropdown values to restored personas
       el("personaWrestler").value = store.selectedPersonas["Wrestler"] || "";
       el("personaManager").value = store.selectedPersonas["Manager"] || "";
       el("personaCallName").value = store.selectedPersonas["Call Name"] || "";
