@@ -1,5 +1,5 @@
 // FILE: renderer.js
-// Export warnings (non-blocking) + compact add buttons remain.
+// Download buttons for TXT and DEK + non-blocking legality warnings + file import + compact add buttons.
 
 import { loadSetList, loadAllCardsFromSets } from "./data-loader.js";
 import {
@@ -301,6 +301,46 @@ function maybeWarnIllegalDeck() {
   }
 }
 
+// ----- Download helper -----
+function downloadTextFile(filename, content, mime = "text/plain;charset=utf-8") {
+  try {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: e?.message || String(e) };
+  }
+}
+
+function safeFilePart(s) {
+  return (s ?? "")
+    .toString()
+    .trim()
+    .replace(/[^\w\-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function buildDeckBaseName() {
+  const picks = store.selectedPersonas || {};
+  const parts = [
+    picks.Wrestler,
+    picks.Manager,
+    picks["Call Name"],
+    picks.Faction
+  ].filter(Boolean).map(safeFilePart);
+
+  const base = parts.length ? parts.join("__") : "AEW_Deck";
+  return base || "AEW_Deck";
+}
+
 // ----- UI wiring -----
 function wireUI() {
   const w = el("personaWrestler");
@@ -339,25 +379,35 @@ function wireUI() {
     renderCardPool();
   };
 
-  el("copyDeckText").onclick = async () => {
+  // Change labels to "Download"
+  el("copyDeckText").textContent = "Download deck list (txt)";
+  el("copyDeckLackey").textContent = "Download Lackey (.dek)";
+
+  el("copyDeckText").onclick = () => {
     try {
       maybeWarnIllegalDeck();
       const txt = exportDeckAsText(store);
-      await navigator.clipboard.writeText(txt);
-      toast("Copied", "Deck list (text) copied.");
+      const base = buildDeckBaseName();
+      const filename = `${base}.txt`;
+      const r = downloadTextFile(filename, txt, "text/plain;charset=utf-8");
+      if (!r.ok) toast("Download failed", r.reason);
+      else toast("Downloaded", filename);
     } catch (e) {
-      toast("Copy failed", e?.message || String(e));
+      toast("Download failed", e?.message || String(e));
     }
   };
 
-  el("copyDeckLackey").onclick = async () => {
+  el("copyDeckLackey").onclick = () => {
     try {
       maybeWarnIllegalDeck();
       const dek = exportDeckAsLackeyDek(store, { game: "AEW", set: "AEW" });
-      await navigator.clipboard.writeText(dek);
-      toast("Copied", "Lackey .dek copied.");
+      const base = buildDeckBaseName();
+      const filename = `${base}.dek`;
+      const r = downloadTextFile(filename, dek, "application/xml;charset=utf-8");
+      if (!r.ok) toast("Download failed", r.reason);
+      else toast("Downloaded", filename);
     } catch (e) {
-      toast("Copy failed", e?.message || String(e));
+      toast("Download failed", e?.message || String(e));
     }
   };
 
