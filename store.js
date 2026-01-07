@@ -38,9 +38,15 @@ export function classifyCard(row) {
   const type = norm(row.Type || row["Card Type"] || row["Type / Kind"]);
   const cardType = norm(row["Card Type"] || row.Type || "");
 
-  // ✅ Unified schema: use "Starting" (keep fallback for safety)
-  const startingFor =
-    norm(row["Starting"] || row["Starting For"] || row.StartingFor || row["StartingFor"]);
+  // ✅ You standardized on "Starting"
+  // Keep fallbacks so one lagging TSV doesn't explode behavior.
+  const startingFor = norm(
+    row["Starting"] ??
+    row["Starting For"] ??
+    row.StartingFor ??
+    row["StartingFor"] ??
+    ""
+  );
 
   const traits = norm(row.Traits || row.Trait || row["Trait(s)"]);
   const cost = norm(row.Cost || row["Cost"]);
@@ -50,14 +56,13 @@ export function classifyCard(row) {
   const set = norm(row.Set || row.__sourceSetFile || "");
   const imageId = norm(row.Image || row["Image File"] || row.ImageFile || row["ImageFile"]);
 
-  // ✅ Signature column exists now; if filled and NOT a persona type, treat as Kit
+  // ✅ Signature is now the only “kit-ness” signal
   const signature = norm(row.Signature || row["Signature"]);
 
-  // Persona identity is Name only; Type is bookkeeping
   const personaKind = ["Wrestler", "Manager", "Call Name", "Faction"].includes(type) ? type : "";
 
   // ✅ Your rule:
-  // Signature filled + not one of the 4 persona types => Kit
+  // If Signature is filled AND it's not one of the 4 persona types, it's a Kit card.
   const isKit = !!signature && personaKind === "";
 
   const isPersona =
@@ -166,13 +171,9 @@ function countFinishers(store) {
 export function canAddToDeck(store, zone, card) {
   const cardKey = keyForCard(card);
 
-  // max 3 total copies
   if (totalCopiesAcrossBoth(store, cardKey) >= 3) return { ok: false, reason: "Max 3 copies total." };
-
-  // finisher
   if (isFinisher(card) && countFinishers(store) >= 1) return { ok: false, reason: "Only 1 Finisher total." };
 
-  // starting rules (NO total-card hard cap)
   if (zone === "starting") {
     const cur = store.deck.starting.get(cardKey)?.qty ?? 0;
     if (!cardCostIsZero(card)) return { ok: false, reason: "Starting can only include Cost 0." };
@@ -208,7 +209,6 @@ export function clearDeck(store) {
   store.deck.purchase.clear();
 }
 
-// ---------- Legality warnings (non-blocking) ----------
 export function getDeckWarnings(store) {
   const w = [];
   const counts = deckCounts(store);
@@ -302,7 +302,6 @@ export function exportDeckAsLackeyDek(store, opts = {}) {
   ].join("\n");
 }
 
-// ---------- Import (all formats) ----------
 export function importDeckFromAny(store, text) {
   const t = (text ?? "").trim();
   if (!t) return { ok: false, reason: "Nothing to import." };
