@@ -25,30 +25,25 @@ export function createStore() {
     cards: [],
     personas: { Wrestler: [], Manager: [], "Call Name": [], Faction: [] },
     selectedPersonas: { Wrestler: "", Manager: "", "Call Name": "", Faction: "" },
+
     starterCards: [],
+
     deck: {
-      starting: new Map(), // key -> { card, qty }
-      purchase: new Map(),
-    },
+      starting: [],
+      purchase: [],
+    }
   };
 }
 
 export function classifyCard(row) {
-  const name = norm(row.Name || row.Card || row["Card Name"]);
+  const rawName = norm(row.Name || row.Card || row["Card Name"]);
   const type = norm(row.Type || row["Card Type"] || row["Type / Kind"]);
   const cardType = norm(row["Card Type"] || row.Type || "");
-
-  // ✅ You standardized on "Starting"
-  // Keep fallbacks so one lagging TSV doesn't explode behavior.
   const startingFor = norm(
-    row["Starting"] ??
-    row["Starting For"] ??
-    row.StartingFor ??
-    row["StartingFor"] ??
-    ""
+    row.Starting || row["Starting"] || row["Starting For"] || row.StartingFor || row["StartingFor"]
   );
-
-  const traits = norm(row.Traits || row.Trait || row["Trait(s)"]);
+  const signature = norm(row.Signature || row["Signature"]);
+  const traits = norm(row.Traits || row.Trait || row["Trait(s)"] || row["Traits"]);
   const cost = norm(row.Cost || row["Cost"]);
   const momentum = norm(row.Momentum || row["Momentum"]);
   const damage = norm(row.Damage || row["Damage"] || row.DMG || row["DMG"]);
@@ -56,18 +51,25 @@ export function classifyCard(row) {
   const set = norm(row.Set || row.__sourceSetFile || "");
   const imageId = norm(row.Image || row["Image File"] || row.ImageFile || row["ImageFile"]);
 
-  // ✅ Signature is now the only “kit-ness” signal
-  const signature = norm(row.Signature || row["Signature"]);
-
   const personaKind = ["Wrestler", "Manager", "Call Name", "Faction"].includes(type) ? type : "";
+  const isPersona = personaKind !== "" || /persona/i.test(cardType);
 
-  // ✅ Your rule:
-  // If Signature is filled AND it's not one of the 4 persona types, it's a Kit card.
-  const isKit = !!signature && personaKind === "";
+  // NEW MODEL:
+  // If Signature is filled AND the card is NOT one of the 4 Persona types, it's a Kit card.
+  // Keep legacy detection too (old exports).
+  const isKit = (!!signature && !isPersona) || /kit/i.test(cardType) || /kit/i.test(type);
 
-  const isPersona =
-    personaKind !== "" ||
-    /persona/i.test(cardType);
+  // Persona identity is Name only.
+  // If persona names were exported as "Name Type" (e.g., "Bobby Lashley Wrestler"), strip the suffix.
+  let name = rawName;
+  if (isPersona) {
+    for (const suf of ["Wrestler", "Manager", "Call Name", "Faction"]) {
+      if (name.endsWith(" " + suf)) {
+        name = name.slice(0, -(" " + suf).length).trim();
+        break;
+      }
+    }
+  }
 
   return {
     raw: row,
@@ -76,6 +78,7 @@ export function classifyCard(row) {
     cardType,
     personaKind,
     startingFor,
+    signature,
     traits,
     cost,
     momentum,
@@ -83,12 +86,8 @@ export function classifyCard(row) {
     gameText,
     set,
     imageId: imageId || buildImageIdFromName(name),
-
-    // flags used by renderer filters
     isKit,
     isPersona,
-
-    signature,
   };
 }
 
@@ -107,7 +106,7 @@ export function ingestAllCards(store, rows, setFiles) {
 }
 
 export function setPersona(store, kind, name) {
-  store.selectedPersonas[kind] = name || "";
+  store.selectedPersonas[kind] = norm(name);
   recomputeStarterCards(store);
 }
 
@@ -121,10 +120,22 @@ export function recomputeStarterCards(store) {
   if (picked.length === 0) { store.starterCards = []; return; }
 
   const starters = [];
+
   for (const c of store.cards) {
+    // Prefer explicit Starting/Starting For list (newer exports)
     const sf = splitList(c.startingFor);
-    if (sf.length === 0) continue;
-    if (picked.some(p => sf.includes(p))) starters.push(c);
+    if (sf.length > 0) {
+      if (picked.some(p => sf.includes(p))) starters.push(c);
+      continue;
+    }
+
+    // Fallback for current simplified model:
+    // - Kit cards are determined by Signature filled (and not being a Persona)
+    // - That Signature value is the persona name it belongs to
+    if (c.isKit) {
+      const sig = norm(c.signature);
+      if (sig && picked.includes(sig)) starters.push(c);
+    }
   }
 
   const personaCards = store.cards.filter(c => picked.includes(c.name) && c.isPersona);
@@ -134,340 +145,254 @@ export function recomputeStarterCards(store) {
   store.starterCards = [...uniq.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-// ---------- Deck rules ----------
-function keyForCard(c) { return `${c.name}||${c.set}`; }
-
 export function deckCounts(store) {
-  let s = 0, p = 0;
-  for (const v of store.deck.starting.values()) s += v.qty;
-  for (const v of store.deck.purchase.values()) p += v.qty;
-  return { starting: s, purchase: p, total: s + p };
+  const countZone = (zone) => store.deck[zone].reduce((n, it) => n + it.qty, 0);
+  return { starting: countZone("starting"), purchase: countZone("purchase") };
 }
 
 export function isFinisher(card) {
-  const t = norm(card.type || card.cardType);
-  return /finisher/i.test(t);
+  const t = (card.type || card.cardType || "").toLowerCase();
+  return t.includes("finisher");
 }
 
 export function cardCostIsZero(card) {
-  const c = norm(card.cost);
-  const n = Number(c);
-  return Number.isFinite(n) && n === 0;
+  const c = Number(card.cost || 0);
+  return Number.isFinite(c) && c === 0;
 }
 
-function totalCopiesAcrossBoth(store, cardKey) {
-  const a = store.deck.starting.get(cardKey)?.qty ?? 0;
-  const b = store.deck.purchase.get(cardKey)?.qty ?? 0;
-  return a + b;
-}
-
-function countFinishers(store) {
-  let n = 0;
-  for (const v of store.deck.starting.values()) if (isFinisher(v.card)) n += v.qty;
-  for (const v of store.deck.purchase.values()) if (isFinisher(v.card)) n += v.qty;
-  return n;
+function totalCopies(store, card) {
+  const key = `${card.name}||${card.set}`;
+  const inZone = (zone) => {
+    const it = store.deck[zone].find(x => x.key === key);
+    return it ? it.qty : 0;
+  };
+  return inZone("starting") + inZone("purchase");
 }
 
 export function canAddToDeck(store, zone, card) {
-  const cardKey = keyForCard(card);
+  if (card.isPersona) return { ok: false, reason: "Personas are not deck cards." };
+  if (card.isKit) return { ok: false, reason: "Kit cards are not in the general pool." };
+  if (card.startingFor) return { ok: false, reason: "Starter/Starting-linked cards are not in the general pool." };
 
-  if (totalCopiesAcrossBoth(store, cardKey) >= 3) return { ok: false, reason: "Max 3 copies total." };
-  if (isFinisher(card) && countFinishers(store) >= 1) return { ok: false, reason: "Only 1 Finisher total." };
+  const maxCopies = isFinisher(card) ? 1 : 3;
+  const have = totalCopies(store, card);
+  if (have >= maxCopies) return { ok: false, reason: `Max copies reached (${maxCopies}).` };
 
-  if (zone === "starting") {
-    const cur = store.deck.starting.get(cardKey)?.qty ?? 0;
-    if (!cardCostIsZero(card)) return { ok: false, reason: "Starting can only include Cost 0." };
-    if (cur >= 2) return { ok: false, reason: "Max 2 copies in Starting." };
+  if (zone === "starting" && !cardCostIsZero(card)) {
+    return { ok: false, reason: "Starting deck is Cost 0 only." };
   }
 
   return { ok: true };
 }
 
 export function addToDeck(store, zone, card) {
-  const check = canAddToDeck(store, zone, card);
-  if (!check.ok) return check;
+  const chk = canAddToDeck(store, zone, card);
+  if (!chk.ok) return chk;
 
-  const cardKey = keyForCard(card);
-  const target = zone === "starting" ? store.deck.starting : store.deck.purchase;
-  const cur = target.get(cardKey);
-  if (cur) cur.qty += 1;
-  else target.set(cardKey, { card, qty: 1 });
+  const key = `${card.name}||${card.set}`;
+  const arr = store.deck[zone];
+  const found = arr.find(x => x.key === key);
+  if (found) found.qty += 1;
+  else arr.push({ key, name: card.name, set: card.set, qty: 1 });
 
   return { ok: true };
 }
 
-export function removeFromDeck(store, zone, cardKey) {
-  const target = zone === "starting" ? store.deck.starting : store.deck.purchase;
-  const cur = target.get(cardKey);
-  if (!cur) return;
-  cur.qty -= 1;
-  if (cur.qty <= 0) target.delete(cardKey);
+export function removeFromDeck(store, zone, card) {
+  const key = `${card.name}||${card.set}`;
+  const arr = store.deck[zone];
+  const found = arr.find(x => x.key === key);
+  if (!found) return { ok: false, reason: "Not in deck." };
+  found.qty -= 1;
+  if (found.qty <= 0) {
+    const idx = arr.indexOf(found);
+    if (idx >= 0) arr.splice(idx, 1);
+  }
+  return { ok: true };
 }
 
 export function clearDeck(store) {
-  store.deck.starting.clear();
-  store.deck.purchase.clear();
+  store.deck.starting = [];
+  store.deck.purchase = [];
 }
 
 export function getDeckWarnings(store) {
-  const w = [];
   const counts = deckCounts(store);
+  const warnings = [];
 
-  if (counts.starting !== 24) w.push(`Starting Draw Deck should be exactly 24 cards (currently ${counts.starting}).`);
-  if (counts.purchase < 36) w.push(`Purchase Deck should be at least 36 cards (currently ${counts.purchase}).`);
+  // Starting deck "goal" is 24, but we do not hard-cap during building.
+  if (counts.starting !== 24) warnings.push(`Starting Draw Deck should be exactly 24 cards (currently ${counts.starting}).`);
 
-  const fin = countFinishers(store);
-  if (fin > 1) w.push(`Only 1 Finisher total allowed (currently ${fin}).`);
+  if (counts.purchase < 36) warnings.push(`Purchase Deck should be at least 36 cards (currently ${counts.purchase}).`);
 
-  for (const v of store.deck.starting.values()) {
-    if (!cardCostIsZero(v.card)) {
-      w.push(`Starting contains non-zero Cost card: "${v.card.name}" (Cost ${v.card.cost || "?"}).`);
-      break;
+  // Finisher rule: only 1 total across both decks
+  let finisherCount = 0;
+  const addFinisherCount = (zone) => {
+    for (const it of store.deck[zone]) {
+      // We don't have card object here; infer by name match in store.cards
+      const c = store.cards.find(x => x.name === it.name && x.set === it.set);
+      if (c && isFinisher(c)) finisherCount += it.qty;
     }
-  }
+  };
+  addFinisherCount("starting");
+  addFinisherCount("purchase");
+  if (finisherCount > 1) warnings.push(`Only 1 Finisher total is allowed (currently ${finisherCount}).`);
 
-  return w;
+  return warnings;
 }
 
-// ---------- Export formats ----------
-function sortDeckMap(map) {
-  return [...map.values()].sort((a, b) => a.card.name.localeCompare(b.card.name));
+function zoneToExpandedLines(store, zone) {
+  const lines = [];
+  for (const it of store.deck[zone]) {
+    lines.push({ qty: it.qty, name: it.name, set: it.set });
+  }
+  lines.sort((a, b) => a.name.localeCompare(b.name));
+  return lines;
 }
 
 export function exportDeckAsText(store) {
-  const lines = [];
+  const w = getDeckWarnings(store);
+  const out = [];
+  if (w.length) out.push("WARNINGS:\n- " + w.join("\n- ") + "\n");
 
-  for (const { card, qty } of sortDeckMap(store.deck.starting)) {
-    lines.push(`${qty}\t${card.name}`);
+  out.push("STARTING DRAW DECK");
+  for (const it of zoneToExpandedLines(store, "starting")) out.push(`${it.qty}x ${it.name} (${it.set})`);
+
+  out.push("");
+  out.push("PURCHASE DECK");
+  for (const it of zoneToExpandedLines(store, "purchase")) out.push(`${it.qty}x ${it.name} (${it.set})`);
+
+  out.push("");
+  out.push("PERSONAS");
+  for (const [k, v] of Object.entries(store.selectedPersonas)) {
+    if (v) out.push(`${k}: ${v}`);
   }
 
-  lines.push(`Purchase_Deck:`);
-  for (const { card, qty } of sortDeckMap(store.deck.purchase)) {
-    lines.push(`${qty}\t${card.name}`);
-  }
-
-  lines.push(`Starting:`);
-  for (const c of store.starterCards) {
-    lines.push(`1\t${c.name}`);
-  }
-
-  return lines.join("\n");
+  return out.join("\n");
 }
 
-export function exportDeckAsLackeyDek(store, opts = {}) {
-  const game = opts.game || "AEW";
-  const setName = opts.set || "AEW";
+export function exportDeckAsLackeyDek(store) {
+  const w = getDeckWarnings(store);
+  const out = [];
+  if (w.length) out.push("// WARNINGS: " + w.join(" | "));
 
-  const xmlEscape = (s) =>
-    (s ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+  // Simple Lackey-ish format: "qty name"
+  // (If your Lackey plugin needs a different exact syntax, we can tune it.)
+  out.push("// Starting Draw Deck");
+  for (const it of zoneToExpandedLines(store, "starting")) out.push(`${it.qty}\t${it.name}`);
 
-  const zoneToCards = (map) => {
-    const out = [];
-    for (const { card, qty } of sortDeckMap(map)) {
-      for (let i = 0; i < qty; i++) {
-        out.push(
-          `\t\t<card><name id="${xmlEscape(card.imageId)}">${xmlEscape(card.name)}</name><set>${xmlEscape(setName)}</set></card>`
-        );
-      }
-    }
-    return out.join("\n");
-  };
+  out.push("");
+  out.push("// Purchase Deck");
+  for (const it of zoneToExpandedLines(store, "purchase")) out.push(`${it.qty}\t${it.name}`);
 
-  const startingZoneCards = store.starterCards.map(c =>
-    `\t\t<card><name id="${xmlEscape(c.imageId)}">${xmlEscape(c.name)}</name><set>${xmlEscape(setName)}</set></card>`
-  ).join("\n");
-
-  const deckZoneCards = zoneToCards(store.deck.starting);
-  const purchaseZoneCards = zoneToCards(store.deck.purchase);
-
-  return [
-    `<deck version="0.8">`,
-    `\t<meta>`,
-    `\t\t<game>${xmlEscape(game)}</game>`,
-    `\t</meta>`,
-    `\t<superzone name="Deck">`,
-    deckZoneCards || ``,
-    `\t</superzone>`,
-    `\t<superzone name="Purchase_Deck">`,
-    purchaseZoneCards || ``,
-    `\t</superzone>`,
-    `\t<superzone name="Starting">`,
-    startingZoneCards || ``,
-    `\t</superzone>`,
-    `</deck>`,
-  ].join("\n");
+  return out.join("\n");
 }
 
 export function importDeckFromAny(store, text) {
-  const t = (text ?? "").trim();
-  if (!t) return { ok: false, reason: "Nothing to import." };
+  const t = norm(text);
+  if (!t) return { ok: false, reason: "Empty file." };
 
-  try {
-    if (t.startsWith("<deck")) return importFromLackeyDek(store, t);
-    if (t.startsWith("{") || t.startsWith("[")) return importFromJSON(store, t);
-    return importFromTextList(store, t);
-  } catch (e) {
-    return { ok: false, reason: `Import failed:\n${e?.message || e}` };
+  // JSON import
+  if (t.startsWith("{") || t.startsWith("[")) {
+    try {
+      const payload = JSON.parse(t);
+      applyLocalPayload(store, payload);
+      return { ok: true };
+    } catch (e) {
+      // continue to text formats
+    }
   }
-}
 
-function findCardByNameBestEffort(store, name) {
-  const n = norm(name);
-  if (!n) return null;
-  let c = store.cards.find(x => x.name === n);
-  if (c) return c;
-  c = store.cards.find(x => x.name.toLowerCase() === n.toLowerCase());
-  return c || null;
-}
+  // Parse lines like:
+  // "2x Card Name (Set)" OR "2 Card Name" OR "2\tCard Name"
+  const lines = t.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 
-function importFromTextList(store, t) {
-  clearDeck(store);
-  let zone = "deck";
-  const lines = t.split(/\r?\n/g).map(s => s.trim()).filter(Boolean);
+  const picked = { Wrestler: "", Manager: "", "Call Name": "", Faction: "" };
+  const starting = [];
+  const purchase = [];
+  let mode = "unknown";
 
   for (const line of lines) {
-    if (/^Purchase_Deck\s*:/i.test(line)) { zone = "purchase"; continue; }
-    if (/^Starting\s*:/i.test(line)) { zone = "startingZone"; continue; }
+    const low = line.toLowerCase();
+    if (low.includes("starting")) { mode = "starting"; continue; }
+    if (low.includes("purchase")) { mode = "purchase"; continue; }
+    if (low.startsWith("wrestler:")) { picked.Wrestler = norm(line.split(":").slice(1).join(":")); continue; }
+    if (low.startsWith("manager:")) { picked.Manager = norm(line.split(":").slice(1).join(":")); continue; }
+    if (low.startsWith("call name:")) { picked["Call Name"] = norm(line.split(":").slice(1).join(":")); continue; }
+    if (low.startsWith("faction:")) { picked.Faction = norm(line.split(":").slice(1).join(":")); continue; }
 
-    const m = line.match(/^(\d+)\s+(.+)$|^(\d+)\t(.+)$/);
-    let qty, name;
-    if (m) { qty = Number(m[1] || m[3]); name = m[2] || m[4]; }
-    else { qty = 1; name = line; }
+    const m = line.match(/^(\d+)\s*x?\s*(.+?)(?:\s*\((.+?)\))?$/i);
+    if (!m) continue;
+    const qty = Number(m[1] || 0);
+    const name = norm(m[2]);
+    const set = norm(m[3]);
 
-    const card = findCardByNameBestEffort(store, name);
-    if (!card) continue;
-
-    if (zone === "deck") for (let i = 0; i < qty; i++) addToDeck(store, "starting", card);
-    else if (zone === "purchase") for (let i = 0; i < qty; i++) addToDeck(store, "purchase", card);
-    else {
-      const key = `${card.name}||${card.set}`;
-      const map = new Map(store.starterCards.map(x => [`${x.name}||${x.set}`, x]));
-      map.set(key, card);
-      store.starterCards = [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
-    }
+    const target = (mode === "purchase") ? purchase : starting;
+    target.push({ qty, name, set });
   }
-  return { ok: true };
-}
 
-function importFromLackeyDek(store, xml) {
+  // Apply
   clearDeck(store);
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(xml, "text/xml");
-  const deckNode = doc.querySelector("deck");
-  if (!deckNode) throw new Error("Missing <deck> root.");
+  store.selectedPersonas = picked;
+  recomputeStarterCards(store);
 
-  const zones = doc.querySelectorAll("superzone");
-  for (const z of zones) {
-    const name = z.getAttribute("name") || "";
-    const cards = z.querySelectorAll("card > name");
-
-    for (const n of cards) {
-      const cardName = n.textContent || "";
-      const imageId = n.getAttribute("id") || "";
-      const card = findCardByNameBestEffort(store, cardName);
-      if (!card) continue;
-      if (imageId) card.imageId = imageId;
-
-      if (name === "Deck") addToDeck(store, "starting", card);
-      else if (name === "Purchase_Deck") addToDeck(store, "purchase", card);
-      else if (name === "Starting") {
-        const key = `${card.name}||${card.set}`;
-        const map = new Map(store.starterCards.map(x => [`${x.name}||${x.set}`, x]));
-        map.set(key, card);
-        store.starterCards = [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
-      }
-    }
-  }
-  return { ok: true };
-}
-
-function importFromJSON(store, jsonText) {
-  clearDeck(store);
-  const data = JSON.parse(jsonText);
-
-  const getList = (obj, keys) => {
-    for (const k of keys) if (obj && Array.isArray(obj[k])) return obj[k];
-    return null;
+  const findByNameSet = (name, set) => {
+    if (set) return store.cards.find(c => c.name === name && c.set === set);
+    return store.cards.find(c => c.name === name);
   };
 
-  if (Array.isArray(data)) {
-    for (const it of data) {
-      const zone = norm(it.zone || it.Zone);
-      const name = norm(it.name || it.Name);
-      const qty = Number(it.qty || it.Qty || 1);
-      const card = findCardByNameBestEffort(store, name);
-      if (!card) continue;
-      if (/purchase/i.test(zone)) for (let i=0;i<qty;i++) addToDeck(store, "purchase", card);
-      else for (let i=0;i<qty;i++) addToDeck(store, "starting", card);
+  const restoreZone = (arr, zone) => {
+    for (const it of arr) {
+      const c = findByNameSet(it.name, it.set);
+      if (!c) continue;
+      for (let i = 0; i < it.qty; i++) addToDeck(store, zone, c);
     }
-    return { ok: true };
-  }
+  };
 
-  const starting = getList(data, ["starting", "Deck"]) || [];
-  const purchase = getList(data, ["purchase", "Purchase_Deck"]) || [];
-
-  for (const it of starting) {
-    const name = norm(it.name || it.Name);
-    const qty = Number(it.qty || it.Qty || 1);
-    const card = findCardByNameBestEffort(store, name);
-    if (!card) continue;
-    for (let i=0;i<qty;i++) addToDeck(store, "starting", card);
-  }
-  for (const it of purchase) {
-    const name = norm(it.name || it.Name);
-    const qty = Number(it.qty || it.Qty || 1);
-    const card = findCardByNameBestEffort(store, name);
-    if (!card) continue;
-    for (let i=0;i<qty;i++) addToDeck(store, "purchase", card);
-  }
+  restoreZone(starting, "starting");
+  restoreZone(purchase, "purchase");
 
   return { ok: true };
 }
-
-// ---------- localStorage ----------
-const LS_KEY = "aewdbg_deckstate_v1";
 
 export function saveToLocal(store) {
   const payload = {
     selectedPersonas: store.selectedPersonas,
-    starting: [...store.deck.starting.entries()].map(([k, v]) => ({ key: k, name: v.card.name, set: v.card.set, qty: v.qty })),
-    purchase: [...store.deck.purchase.entries()].map(([k, v]) => ({ key: k, name: v.card.name, set: v.card.set, qty: v.qty })),
-    starter: store.starterCards.map(c => ({ name: c.name, set: c.set })),
+    starting: store.deck.starting,
+    purchase: store.deck.purchase,
   };
-  localStorage.setItem(LS_KEY, JSON.stringify(payload));
+  localStorage.setItem("aewdbg_deck", JSON.stringify(payload));
 }
 
-export function loadFromLocal(store) {
-  const raw = localStorage.getItem(LS_KEY);
-  if (!raw) return { ok: false, reason: "No saved state." };
-  const payload = JSON.parse(raw);
-  return { ok: true, payload };
+export function loadFromLocal() {
+  try {
+    const raw = localStorage.getItem("aewdbg_deck");
+    if (!raw) return { ok: false, reason: "No local save." };
+    return { ok: true, payload: JSON.parse(raw) };
+  } catch (e) {
+    return { ok: false, reason: e?.message || String(e) };
+  }
 }
 
 export function applyLocalPayload(store, payload) {
-  const findByNameSet = (name, set) =>
-    store.cards.find(c => c.name === name && c.set === set) ||
-    store.cards.find(c => c.name === name) || null;
+  if (!payload || typeof payload !== "object") return;
 
   if (payload.selectedPersonas) {
-    store.selectedPersonas = payload.selectedPersonas;
+    store.selectedPersonas = {
+      Wrestler: norm(payload.selectedPersonas.Wrestler),
+      Manager: norm(payload.selectedPersonas.Manager),
+      "Call Name": norm(payload.selectedPersonas["Call Name"]),
+      Faction: norm(payload.selectedPersonas.Faction),
+    };
     recomputeStarterCards(store);
   }
 
-  if (Array.isArray(payload.starter) && payload.starter.length) {
-    const uniq = new Map();
-    for (const it of payload.starter) {
-      const c = findByNameSet(it.name, it.set);
-      if (c) uniq.set(`${c.name}||${c.set}`, c);
-    }
-    store.starterCards = [...uniq.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }
-
   clearDeck(store);
+
+  const findByNameSet = (name, set) => {
+    if (set) return store.cards.find(c => c.name === name && c.set === set);
+    return store.cards.find(c => c.name === name);
+  };
 
   const restoreZone = (arr, zone) => {
     if (!Array.isArray(arr)) return;

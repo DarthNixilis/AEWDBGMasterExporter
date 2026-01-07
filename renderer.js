@@ -18,53 +18,27 @@ const el = (id) => document.getElementById(id);
 
 function nowTime() {
   const d = new Date();
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const hh = d.getHours() % 12 || 12;
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  const ap = d.getHours() >= 12 ? "PM" : "AM";
+  return `${hh}:${mm}:${ss} ${ap}`;
 }
 
-function toast(title, msg) {
-  const host = el("toastHost");
-  const wrap = document.createElement("div");
-  wrap.className = "toast";
-
-  const top = document.createElement("div");
-  top.className = "toastTop";
-
-  const left = document.createElement("div");
-  left.innerHTML = `<div class="toastTitle">${escapeHtml(title)} <span class="toastTime">· ${escapeHtml(nowTime())}</span></div>`;
-
-  const btns = document.createElement("div");
-  btns.className = "toastBtns";
-
-  const copyBtn = document.createElement("button");
-  copyBtn.textContent = "Copy";
-  copyBtn.onclick = async () => {
-    try { await navigator.clipboard.writeText(String(msg ?? "")); } catch {}
-  };
-
-  const closeBtn = document.createElement("button");
-  closeBtn.textContent = "Close";
-  closeBtn.onclick = () => wrap.remove();
-
-  btns.appendChild(copyBtn);
-  btns.appendChild(closeBtn);
-
-  top.appendChild(left);
-  top.appendChild(btns);
-
-  const body = document.createElement("div");
-  body.className = "toastMsg";
-  body.textContent = String(msg ?? "");
-
-  wrap.appendChild(top);
-  wrap.appendChild(body);
-
-  host.appendChild(wrap);
+function toast(title, message) {
+  const t = el("toast");
+  const tt = el("toastTitle");
+  const tb = el("toastBody");
+  if (!t || !tt || !tb) return alert(`${title}\n\n${message}`);
+  tt.textContent = title || "Message";
+  tb.textContent = (message ?? "").toString();
+  t.classList.add("show");
+  el("toastTime").textContent = nowTime();
 }
 
-function escapeHtml(s) {
-  return (s ?? "").toString()
-    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
-    .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+function hideToast() {
+  const t = el("toast");
+  if (t) t.classList.remove("show");
 }
 
 function setStatus(text) { el("statusLine").textContent = text; }
@@ -87,35 +61,29 @@ function optionize(select, items, placeholder) {
   }
 }
 
-function fillFilter(select, values) {
-  const cur = select.value || "All";
-  select.innerHTML = "";
-  const all = document.createElement("option");
-  all.value = "All";
-  all.textContent = "All";
-  select.appendChild(all);
-  for (const v of values) {
-    const o = document.createElement("option");
-    o.value = v;
-    o.textContent = v;
-    select.appendChild(o);
-  }
-  select.value = values.includes(cur) ? cur : "All";
+function escapeHtml(s) {
+  return (s ?? "").toString()
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+}
+
+function addButtonLabel(zone, card) {
+  // Buttons don’t need "+1". Keep them short.
+  return zone === "starting" ? "Starting" : "Purchase";
 }
 
 function makeCardTile(card, actions = []) {
   const div = document.createElement("div");
   div.className = "cardItem";
 
-  const dmg = card.damage ? ` · DMG ${card.damage}` : "";
-  const cost = card.cost ? `Cost ${card.cost}` : "Cost ?";
-  const mom = card.momentum ? ` · MOM ${card.momentum}` : "";
+  const dmg = (card.damage !== "" && card.damage != null) ? ` · DMG ${card.damage}` : "";
+  const mom = (card.momentum !== "" && card.momentum != null) ? ` · MOM ${card.momentum}` : "";
+  const cost = (card.cost !== "" && card.cost != null) ? ` · Cost ${card.cost}` : "";
 
   div.innerHTML = `
     <div class="cardName">${escapeHtml(card.name)}</div>
-    <div class="meta">${escapeHtml(card.type || card.cardType || "Card")} · ${escapeHtml(cost)}${escapeHtml(mom)}${escapeHtml(dmg)} · Source: ${escapeHtml(card.set)}</div>
-    ${card.traits ? `<div class="pillRow">${card.traits.split(/[,;|]/g).map(t=>t.trim()).filter(Boolean).map(t=>`<span class="pill">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
-    ${card.gameText ? `<div class="gameText">${escapeHtml(card.gameText)}</div>` : ""}
+    <div class="cardMeta">${escapeHtml(card.type || card.cardType || "")}${cost}${mom}${dmg} · Source: ${escapeHtml(card.set || "")}</div>
+    <div class="cardText">${escapeHtml(card.gameText || "(no text)")}</div>
   `;
 
   if (actions.length) {
@@ -135,9 +103,15 @@ function makeCardTile(card, actions = []) {
   return div;
 }
 
-let visiblePool = 60;
+function deckButtonText(zone) {
+  const counts = deckCounts(store);
+  const n = zone === "starting" ? counts.starting : counts.purchase;
+  return zone === "starting" ? `Starting (${n})` : `Purchase (${n})`;
+}
 
 function passesCardPoolFilters(c) {
+  // Exclude all non-playable pools
+  if (c.isPersona) return false;
   if (c.isKit) return false;
   if (c.startingFor) return false;
 
@@ -167,71 +141,25 @@ function passesCardPoolFilters(c) {
   return true;
 }
 
-function renderStarterCards() {
+let visiblePool = 60;
+
+function renderStarterKit() {
   const host = el("starterCards");
   host.innerHTML = "";
-  if (!store.starterCards.length) {
+
+  const picked = Object.values(store.selectedPersonas || {}).filter(Boolean);
+  if (picked.length === 0) {
     host.textContent = "(No personas selected)";
     return;
   }
-  for (const c of store.starterCards) host.appendChild(makeCardTile(c));
-}
 
-function renderDeckLists() {
-  const sBox = el("startingDeckBox");
-  const pBox = el("purchaseDeckBox");
-  sBox.innerHTML = "";
-  pBox.innerHTML = "";
+  for (const c of store.starterCards || []) {
+    host.appendChild(makeCardTile(c, []));
+  }
 
-  const counts = deckCounts(store);
-  el("startingDeckTitle").textContent = `Starting Draw Deck (${counts.starting}/24 target)`;
-  el("purchaseDeckTitle").textContent = `Purchase Deck (${counts.purchase} / 36+ target)`;
-
-  const renderMap = (box, zone, map) => {
-    const items = [...map.entries()]
-      .map(([key, v]) => ({ key, ...v }))
-      .sort((a, b) => a.card.name.localeCompare(b.card.name));
-
-    if (!items.length) {
-      const d = document.createElement("div");
-      d.className = "cardItem";
-      d.textContent = "(empty)";
-      box.appendChild(d);
-      return;
-    }
-
-    for (const it of items) {
-      box.appendChild(makeCardTile(it.card, [
-        { label: `Remove (${it.qty})`, className: "secondary", onClick: () => { removeFromDeck(store, zone, it.key); autosave(); renderAll(); } },
-        { label: `Add`, onClick: () => { const r = addToDeck(store, zone, it.card); if (!r.ok) toast("Deck rule", r.reason); autosave(); renderAll(); } },
-      ]));
-    }
-  };
-
-  renderMap(sBox, "starting", store.deck.starting);
-  renderMap(pBox, "purchase", store.deck.purchase);
-}
-
-function renderFilters() {
-  const types = [...new Set(store.cards.map(c => (c.type || c.cardType || "").trim()).filter(Boolean))].sort();
-  const traits = [...new Set(store.cards.flatMap(c => (c.traits || "").split(/[,;|]/g).map(x => x.trim()).filter(Boolean)))].sort();
-  const sets = [...new Set(store.cards.map(c => c.set).filter(Boolean))].sort();
-
-  fillFilter(el("typeFilter"), types);
-  fillFilter(el("traitFilter"), traits);
-  fillFilter(el("setFilter"), sets);
-}
-
-function zoneCount(zone, card) {
-  const key = `${card.name}||${card.set}`;
-  const map = zone === "starting" ? store.deck.starting : store.deck.purchase;
-  return map.get(key)?.qty ?? 0;
-}
-
-function addButtonLabel(zone, card) {
-  const base = zone === "starting" ? "Starting" : "Purchase";
-  const n = zoneCount(zone, card);
-  return `${base} [${n}]`;
+  if (!store.starterCards || store.starterCards.length === 0) {
+    host.textContent = "(No starter/kit cards found for those personas)";
+  }
 }
 
 function renderCardPool() {
@@ -269,80 +197,115 @@ function renderCardPool() {
     ]));
   }
 
-  if (filtered.length === 0) host.textContent = "(No cards match filters)";
+  el("showMoreWrap").style.display = filtered.length > visiblePool ? "block" : "none";
+  el("poolCount").textContent = `Showing ${Math.min(visiblePool, filtered.length)} of ${filtered.length} pool cards`;
+}
+
+function renderDeck() {
+  el("btnAddStarting").textContent = deckButtonText("starting");
+  el("btnAddPurchase").textContent = deckButtonText("purchase");
+
+  const sHost = el("startingDeck");
+  const pHost = el("purchaseDeck");
+  sHost.innerHTML = "";
+  pHost.innerHTML = "";
+
+  const makeLine = (it, zone) => {
+    const row = document.createElement("div");
+    row.className = "deckRow";
+    row.innerHTML = `
+      <div class="deckQty">${it.qty}x</div>
+      <div class="deckName">${escapeHtml(it.name)} <span class="deckSet">(${escapeHtml(it.set || "")})</span></div>
+    `;
+    const btn = document.createElement("button");
+    btn.textContent = "−";
+    btn.onclick = () => {
+      const c = store.cards.find(x => x.name === it.name && x.set === it.set) || { name: it.name, set: it.set };
+      removeFromDeck(store, zone, c);
+      autosave();
+      renderAll();
+    };
+    row.appendChild(btn);
+    return row;
+  };
+
+  for (const it of store.deck.starting) sHost.appendChild(makeLine(it, "starting"));
+  for (const it of store.deck.purchase) pHost.appendChild(makeLine(it, "purchase"));
+
+  const warns = getDeckWarnings(store);
+  el("deckWarnings").innerHTML = warns.length ? `<div class="warnBox"><b>Deck warnings:</b><ul>${warns.map(w => `<li>${escapeHtml(w)}</li>`).join("")}</ul></div>` : "";
+}
+
+function renderFilters() {
+  // Type
+  const types = [...new Set(store.cards.filter(passesCardPoolFilters)
+    .map(c => (c.type || c.cardType || "").trim())
+    .filter(Boolean))].sort((a, b) => a.localeCompare(b));
+
+  const typeSel = el("typeFilter");
+  const curType = typeSel.value || "All";
+  typeSel.innerHTML = `<option value="All">All</option>` + types.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+  typeSel.value = types.includes(curType) ? curType : "All";
+
+  // Trait
+  const traitSet = new Set();
+  for (const c of store.cards) {
+    if (!passesCardPoolFilters(c)) continue;
+    for (const tr of (c.traits || "").split(/[,;|]/g).map(x => x.trim()).filter(Boolean)) traitSet.add(tr);
+  }
+  const traits = [...traitSet].sort((a, b) => a.localeCompare(b));
+
+  const traitSel = el("traitFilter");
+  const curTrait = traitSel.value || "All";
+  traitSel.innerHTML = `<option value="All">All</option>` + traits.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+  traitSel.value = traits.includes(curTrait) ? curTrait : "All";
+
+  // Set
+  const sets = [...new Set(store.cards.map(c => c.set).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const setSel = el("setFilter");
+  const curSet = setSel.value || "All";
+  setSel.innerHTML = `<option value="All">All</option>` + sets.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
+  setSel.value = sets.includes(curSet) ? curSet : "All";
 }
 
 function renderAll() {
   setStatus(`Status: Loaded Sets: ${store.sets.length} Cards: ${store.cards.length}`);
+
+  optionize(el("personaWrestler"), store.personas["Wrestler"], "(none)");
+  optionize(el("personaManager"), store.personas["Manager"], "(none)");
+  optionize(el("personaCallName"), store.personas["Call Name"], "(none)");
+  optionize(el("personaFaction"), store.personas["Faction"], "(none)");
+
+  renderStarterKit();
   renderFilters();
-  renderStarterCards();
-  renderDeckLists();
   renderCardPool();
+  renderDeck();
+}
+
+function downloadFile(filename, content) {
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function autosave() {
-  try { saveToLocal(store); } catch {}
-}
-
-// ----- File import -----
-async function readSelectedFileText() {
-  const input = el("importFile");
-  const f = input?.files?.[0];
-  if (!f) return { ok: false, reason: "No file selected." };
-  const text = await f.text();
-  return { ok: true, name: f.name || "(file)", text };
-}
-
-// ----- Export warning helper -----
-function maybeWarnIllegalDeck() {
-  const warnings = getDeckWarnings(store);
-  if (warnings.length) {
-    toast("Deck reminder (still exporting)", warnings.join("\n"));
-  }
-}
-
-// ----- Download helper -----
-function downloadTextFile(filename, content, mime = "text/plain;charset=utf-8") {
   try {
-    const blob = new Blob([content], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    return { ok: true };
+    saveToLocal(store);
+    el("autosaveNote").textContent = "Auto-saved locally.";
   } catch (e) {
-    return { ok: false, reason: e?.message || String(e) };
+    el("autosaveNote").textContent = "Auto-save failed.";
   }
 }
 
-function safeFilePart(s) {
-  return (s ?? "")
-    .toString()
-    .trim()
-    .replace(/[^\w\-]+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "");
-}
-
-function buildDeckBaseName() {
-  const picks = store.selectedPersonas || {};
-  const parts = [
-    picks.Wrestler,
-    picks.Manager,
-    picks["Call Name"],
-    picks.Faction
-  ].filter(Boolean).map(safeFilePart);
-
-  const base = parts.length ? parts.join("__") : "AEW_Deck";
-  return base || "AEW_Deck";
-}
-
-// ----- UI wiring -----
 function wireUI() {
+  el("toastClose").onclick = hideToast;
+
   const w = el("personaWrestler");
   const m = el("personaManager");
   const c = el("personaCallName");
@@ -379,57 +342,19 @@ function wireUI() {
     renderCardPool();
   };
 
-  // Change labels to "Download"
-  el("copyDeckText").textContent = "Download deck list (txt)";
-  el("copyDeckLackey").textContent = "Download Lackey (.dek)";
+  el("btnExportTxt").onclick = () => downloadFile("deck.txt", exportDeckAsText(store));
+  el("btnExportDek").onclick = () => downloadFile("deck.dek", exportDeckAsLackeyDek(store));
 
-  el("copyDeckText").onclick = () => {
+  el("btnClearDeck").onclick = () => { clearDeck(store); autosave(); renderAll(); };
+
+  el("importFile").onchange = async () => {
     try {
-      maybeWarnIllegalDeck();
-      const txt = exportDeckAsText(store);
-      const base = buildDeckBaseName();
-      const filename = `${base}.txt`;
-      const r = downloadTextFile(filename, txt, "text/plain;charset=utf-8");
-      if (!r.ok) toast("Download failed", r.reason);
-      else toast("Downloaded", filename);
-    } catch (e) {
-      toast("Download failed", e?.message || String(e));
-    }
-  };
-
-  el("copyDeckLackey").onclick = () => {
-    try {
-      maybeWarnIllegalDeck();
-      const dek = exportDeckAsLackeyDek(store, { game: "AEW", set: "AEW" });
-      const base = buildDeckBaseName();
-      const filename = `${base}.dek`;
-      const r = downloadTextFile(filename, dek, "application/xml;charset=utf-8");
-      if (!r.ok) toast("Download failed", r.reason);
-      else toast("Downloaded", filename);
-    } catch (e) {
-      toast("Download failed", e?.message || String(e));
-    }
-  };
-
-  el("clearDeck").onclick = () => {
-    clearDeck(store);
-    autosave();
-    toast("Deck", "Cleared.");
-    renderAll();
-  };
-
-  el("importFile").onchange = () => {
-    const f = el("importFile")?.files?.[0];
-    el("importFileName").textContent = f ? `Selected: ${f.name || "(file)"}` : "(no file selected)";
-  };
-
-  el("importDeck").onclick = async () => {
-    try {
-      const r = await readSelectedFileText();
-      if (!r.ok) { toast("Import", r.reason); return; }
-      const out = importDeckFromAny(store, r.text);
-      if (!out.ok) toast("Import failed", out.reason);
-      else toast("Imported", `Imported from ${r.name}`);
+      const f = el("importFile").files?.[0];
+      if (!f) return;
+      const text = await f.text();
+      const r = importDeckFromAny(store, text);
+      if (!r.ok) toast("Import failed", r.reason);
+      else toast("Imported", `Imported from ${f.name}`);
       autosave();
       renderAll();
     } catch (e) {
@@ -444,18 +369,15 @@ async function boot() {
     setStatus(`Status: Loading… Sets: (loading) Cards: (loading)`);
     wireUI();
 
-    const setFiles = await loadSetList();
-    const rows = await loadAllCardsFromSets(setFiles);
+    // Load sets
+    const list = await loadSetList();
+    const rows = await loadAllCardsFromSets(list.setFiles);
 
-    ingestAllCards(store, rows, setFiles);
+    ingestAllCards(store, rows, list.setFiles.map(f => f.split("/").pop() || f));
 
-    optionize(el("personaWrestler"), store.personas["Wrestler"], "(none)");
-    optionize(el("personaManager"), store.personas["Manager"], "(none)");
-    optionize(el("personaCallName"), store.personas["Call Name"], "(none)");
-    optionize(el("personaFaction"), store.personas["Faction"], "(none)");
-
-    const loaded = loadFromLocal(store);
-    if (loaded.ok && loaded.payload) {
+    // Restore local
+    const loaded = loadFromLocal();
+    if (loaded.ok) {
       applyLocalPayload(store, loaded.payload);
       el("personaWrestler").value = store.selectedPersonas["Wrestler"] || "";
       el("personaManager").value = store.selectedPersonas["Manager"] || "";
@@ -466,7 +388,7 @@ async function boot() {
     renderAll();
     autosave();
   } catch (e) {
-    failStatus(e, "Boot failed");
+    failStatus(e, "Boot failed (data load/import)");
   }
 }
 
