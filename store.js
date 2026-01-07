@@ -37,7 +37,11 @@ export function classifyCard(row) {
   const name = norm(row.Name || row.Card || row["Card Name"]);
   const type = norm(row.Type || row["Card Type"] || row["Type / Kind"]);
   const cardType = norm(row["Card Type"] || row.Type || "");
-  const startingFor = norm(row["Starting For"] || row.StartingFor || row["StartingFor"]);
+
+  // ✅ Unified schema: use "Starting" (keep fallback for safety)
+  const startingFor =
+    norm(row["Starting"] || row["Starting For"] || row.StartingFor || row["StartingFor"]);
+
   const traits = norm(row.Traits || row.Trait || row["Trait(s)"]);
   const cost = norm(row.Cost || row["Cost"]);
   const momentum = norm(row.Momentum || row["Momentum"]);
@@ -46,11 +50,15 @@ export function classifyCard(row) {
   const set = norm(row.Set || row.__sourceSetFile || "");
   const imageId = norm(row.Image || row["Image File"] || row.ImageFile || row["ImageFile"]);
 
+  // ✅ Signature column exists now; if filled and NOT a persona type, treat as Kit
+  const signature = norm(row.Signature || row["Signature"]);
+
+  // Persona identity is Name only; Type is bookkeeping
   const personaKind = ["Wrestler", "Manager", "Call Name", "Faction"].includes(type) ? type : "";
 
-  const isKit =
-    /kit/i.test(cardType) ||
-    /kit/i.test(type);
+  // ✅ Your rule:
+  // Signature filled + not one of the 4 persona types => Kit
+  const isKit = !!signature && personaKind === "";
 
   const isPersona =
     personaKind !== "" ||
@@ -70,8 +78,12 @@ export function classifyCard(row) {
     gameText,
     set,
     imageId: imageId || buildImageIdFromName(name),
+
+    // flags used by renderer filters
     isKit,
     isPersona,
+
+    signature,
   };
 }
 
@@ -204,11 +216,9 @@ export function getDeckWarnings(store) {
   if (counts.starting !== 24) w.push(`Starting Draw Deck should be exactly 24 cards (currently ${counts.starting}).`);
   if (counts.purchase < 36) w.push(`Purchase Deck should be at least 36 cards (currently ${counts.purchase}).`);
 
-  // finisher
   const fin = countFinishers(store);
   if (fin > 1) w.push(`Only 1 Finisher total allowed (currently ${fin}).`);
 
-  // Starting cost 0 check is already enforced on add, but warn if imported junk slipped in.
   for (const v of store.deck.starting.values()) {
     if (!cardCostIsZero(v.card)) {
       w.push(`Starting contains non-zero Cost card: "${v.card.name}" (Cost ${v.card.cost || "?"}).`);
