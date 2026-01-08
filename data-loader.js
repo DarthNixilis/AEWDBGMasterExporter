@@ -1,110 +1,91 @@
-// FILE: data-loader.js
-// Loads setList.txt from /sets/ then loads each TSV, parses rows, and returns all cards.
-// Designed for GitHub Pages + mobile debugging: throws rich Errors with URL + HTTP status.
+/* data-loader.js
+ *
+ * Multi-set loader built from the original working beta logic.
+ * Key guarantees:
+ * - Uses ONLY relative paths
+ * - Works regardless of repo name
+ * - Works locally and on GitHub Pages
+ * - No leading slashes, ever
+ */
 
-function norm(s) { return (s ?? "").toString().trim(); }
+/**
+ * Load all card data from TSV files listed in sets/setlist.txt
+ */
+export async function loadAllCardsFromSets() {
+  console.log("Loading card sets…");
 
-function tsvParse(text) {
-  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter(l => l.length > 0);
-  if (lines.length < 2) return [];
-  const headers = lines[0].split("\t").map(h => norm(h));
-  const out = [];
+  // 1) Load set list (relative path, same rule as beta)
+  const setlistResponse = await fetch("sets/setlist.txt");
+  if (!setlistResponse.ok) {
+    throw new Error("Failed to load sets/setlist.txt");
+  }
+
+  const setlistText = await setlistResponse.text();
+
+  const setFiles = setlistText
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  if (setFiles.length === 0) {
+    throw new Error("Set list is empty.");
+  }
+
+  console.log("Sets found:", setFiles);
+
+  // 2) Load each TSV exactly like the beta did (just in a loop)
+  let allCards = [];
+
+  for (const fileName of setFiles) {
+    const path = `sets/${fileName}`;
+    console.log(`Loading set: ${path}`);
+
+    const response = await fetch(path);
+    if (!response.ok) {
+      throw new Error(`Failed to load set file: ${path}`);
+    }
+
+    const tsvText = await response.text();
+    const cards = parseTSV(tsvText, fileName);
+
+    console.log(`Loaded ${cards.length} cards from ${fileName}`);
+    allCards.push(...cards);
+  }
+
+  console.log(`Total cards loaded: ${allCards.length}`);
+  return allCards;
+}
+
+/**
+ * Parse TSV text into card objects
+ * (Direct descendant of beta parser)
+ */
+function parseTSV(tsvText, sourceFile) {
+  const lines = tsvText
+    .split(/\r?\n/)
+    .filter(line => line.trim().length > 0);
+
+  if (lines.length < 2) {
+    console.warn(`No data rows found in ${sourceFile}`);
+    return [];
+  }
+
+  const headers = lines[0].split("\t").map(h => h.trim());
+  const cards = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const vals = lines[i].split("\t");
+    const values = lines[i].split("\t");
+    const card = {};
 
-    // If a row has extra tabs, merge everything beyond the last header into the last column.
-    if (vals.length > headers.length) {
-      const head = vals.slice(0, headers.length - 1);
-      const tail = vals.slice(headers.length - 1).join("\t");
-      vals.length = 0;
-      vals.push(...head, tail);
-    }
+    headers.forEach((header, index) => {
+      card[header] = values[index]?.trim() ?? "";
+    });
 
-    while (vals.length < headers.length) vals.push("");
+    // Optional but useful for debugging provenance
+    card.__set = sourceFile;
 
-    const row = {};
-    for (let j = 0; j < headers.length; j++) row[headers[j]] = vals[j];
-    out.push(row);
+    cards.push(card);
   }
 
-  return out;
-}
-
-async function fetchText(url) {
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) {
-    const msg = `HTTP ${r.status} ${r.statusText} for ${url}`;
-    const err = new Error(msg);
-    err.httpStatus = r.status;
-    err.url = url;
-    throw err;
-  }
-  return await r.text();
-}
-
-async function tryFirstText(urls) {
-  let lastErr = null;
-  for (const u of urls) {
-    try {
-      const t = await fetchText(u);
-      return { url: u, text: t };
-    } catch (e) {
-      lastErr = e;
-    }
-  }
-  throw lastErr || new Error("No URLs provided");
-}
-
-export async function loadSetList() {
-  // Support fallbacks because folder moves happen a lot during development.
-  const candidates = [
-    "./sets/setList.txt",
-    "./sets/setlist.txt",
-    "./setList.txt",
-    "./setlist.txt",
-    "./data/setList.txt",
-    "./data/setlist.txt",
-  ];
-
-  const { url, text } = await tryFirstText(candidates);
-
-  const files = text
-    .split(/\r?\n/)
-    .map(l => l.trim())
-    .filter(l => l && !l.startsWith("#") && !l.startsWith("//"));
-
-  // If setList exists but is empty, fall back to sane defaults.
-  if (files.length === 0) {
-    return {
-      sourceUrl: url,
-      setFiles: ["Core.tsv", "Advanced.tsv"].map(f => `./sets/${f}`),
-      rawLines: [],
-    };
-  }
-
-  // If the list already contains paths, respect them. Otherwise assume /sets/
-  const setFiles = files.map(f => (f.includes("/") ? f : `./sets/${f}`));
-
-  return { sourceUrl: url, setFiles, rawLines: files };
-}
-
-export async function loadAllCardsFromSets(setFiles) {
-  const all = [];
-
-  for (const file of setFiles) {
-    const text = await fetchText(file);
-    const rows = tsvParse(text);
-
-    // Annotate source set file for UI/debugging.
-    const setName = file.split("/").pop()?.replace(/\.tsv$/i, "") || file;
-
-    for (const r of rows) {
-      if (!("Set" in r) || !norm(r.Set)) r.Set = setName;
-      r.__sourceSetFile = setName;
-      all.push(r);
-    }
-  }
-
-  return all;
+  return cards;
 }
