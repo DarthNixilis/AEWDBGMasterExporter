@@ -1,2 +1,0 @@
-Core.tsv
-Advanced.tsv
