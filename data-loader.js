@@ -1,91 +1,92 @@
-/* data-loader.js
- *
- * Multi-set loader built from the original working beta logic.
- * Key guarantees:
- * - Uses ONLY relative paths
- * - Works regardless of repo name
- * - Works locally and on GitHub Pages
- * - No leading slashes, ever
- */
+// data-loader.js
+import * as state from './config.js';
+import { initializeApp } from './app-init.js';
 
-/**
- * Load all card data from TSV files listed in sets/setlist.txt
- */
-export async function loadAllCardsFromSets() {
-  console.log("Loading card sets…");
-
-  // 1) Load set list (relative path, same rule as beta)
-  const setlistResponse = await fetch("sets/setlist.txt");
-  if (!setlistResponse.ok) {
-    throw new Error("Failed to load sets/setlist.txt");
-  }
-
-  const setlistText = await setlistResponse.text();
-
-  const setFiles = setlistText
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(Boolean);
-
-  if (setFiles.length === 0) {
-    throw new Error("Set list is empty.");
-  }
-
-  console.log("Sets found:", setFiles);
-
-  // 2) Load each TSV exactly like the beta did (just in a loop)
-  let allCards = [];
-
-  for (const fileName of setFiles) {
-    const path = `sets/${fileName}`;
-    console.log(`Loading set: ${path}`);
-
-    const response = await fetch(path);
-    if (!response.ok) {
-      throw new Error(`Failed to load set file: ${path}`);
+// --- DYNAMIC PATH DETECTION ---
+function getBasePath() {
+    const path = window.location.pathname;
+    // This handles project pages like /RepoName/
+    // It finds the first slash after the initial one.
+    const secondSlashIndex = path.indexOf('/', 1); 
+    if (secondSlashIndex !== -1) {
+        // Extracts the repository name part (e.g., "/RepoName/")
+        return path.substring(0, secondSlashIndex + 1);
     }
+    // Fallback for root deployment (e.g., username.github.io) or local server
+    return '/';
+}
+// --- END DYNAMIC PATH DETECTION ---
 
-    const tsvText = await response.text();
-    const cards = parseTSV(tsvText, fileName);
+export async function loadGameData() {
+    const searchResults = document.getElementById('searchResults');
+    try {
+        searchResults.innerHTML = '<p>Loading card data...</p>';
 
-    console.log(`Loaded ${cards.length} cards from ${fileName}`);
-    allCards.push(...cards);
-  }
+        const basePath = getBasePath();
+        // Use the dynamically determined base path to build the correct URL
+        const cardDbUrl = `${basePath}cardDatabase.txt?v=${new Date().getTime()}`;
+        const keywordsUrl = `${basePath}keywords.txt?v=${new Date().getTime()}`;
 
-  console.log(`Total cards loaded: ${allCards.length}`);
-  return allCards;
+        console.log(`Attempting to load data from: ${basePath}`); // Helpful for debugging
+
+        const [cardResponse, keywordResponse] = await Promise.all([
+            fetch(cardDbUrl),
+            fetch(keywordsUrl)
+        ]);
+
+        if (!cardResponse.ok) throw new Error(`Could not load cardDatabase.txt (Status: ${cardResponse.status})`);
+        if (!keywordResponse.ok) throw new Error(`Could not load keywords.txt (Status: ${keywordResponse.status})`);
+        
+        const tsvData = await cardResponse.text();
+        const cardLines = tsvData.trim().split(/\r?\n/);
+        const cardHeaders = cardLines.shift().trim().split('\t').map(h => h.trim());
+        const parsedCards = cardLines.map(line => {
+            const values = line.split('\t');
+            const card = {};
+            cardHeaders.forEach((header, index) => {
+                const value = (values[index] || '').trim();
+                if (value === 'null' || value === '') card[header] = null;
+                else if (!isNaN(value) && value !== '') card[header] = Number(value);
+                else card[header] = value;
+            });
+            card.title = card['Card Name'];
+            card.card_type = card['Type'];
+            card.cost = card['Cost'] === 'N/a' ? null : card['Cost'];
+            card.damage = card['Damage'] === 'N/a' ? null : card['Damage'];
+            card.momentum = card['Momentum'] === 'N/a' ? null : card['Momentum'];
+            card.text_box = { raw_text: card['Card Raw Game Text'] };
+            if (card.Keywords) card.text_box.keywords = card.Keywords.split(',').map(name => ({ name: name.trim() })).filter(k => k.name);
+            else card.text_box.keywords = [];
+            if (card.Traits) card.text_box.traits = card.Traits.split(',').map(traitStr => {
+                const [name, value] = traitStr.split(':');
+                return { name: name.trim(), value: value ? value.trim() : undefined };
+            }).filter(t => t.name);
+            else card.text_box.traits = [];
+            return card;
+        }).filter(card => card.title);
+        state.setCardDatabase(parsedCards);
+
+        const keywordText = await keywordResponse.text();
+        const parsedKeywords = {};
+        const keywordLines = keywordText.trim().split(/\r?\n/);
+        keywordLines.forEach(line => {
+            if (line.trim() === '') return;
+            const parts = line.split(':');
+            if (parts.length >= 2) {
+                const key = parts[0].trim();
+                const value = parts.slice(1).join(':').trim();
+                parsedKeywords[key] = value;
+            }
+        });
+        state.setKeywordDatabase(parsedKeywords);
+        
+        state.buildCardTitleCache();
+        return true; // Signal success
+
+    } catch (error) {
+        console.error("Fatal Error during data load:", error);
+        searchResults.innerHTML = `<div style="color: red; padding: 20px; text-align: center;"><strong>FATAL ERROR:</strong> ${error.message}<br><br><button onclick="location.reload()">Retry</button></div>`;
+        return false; // Signal failure
+    }
 }
 
-/**
- * Parse TSV text into card objects
- * (Direct descendant of beta parser)
- */
-function parseTSV(tsvText, sourceFile) {
-  const lines = tsvText
-    .split(/\r?\n/)
-    .filter(line => line.trim().length > 0);
-
-  if (lines.length < 2) {
-    console.warn(`No data rows found in ${sourceFile}`);
-    return [];
-  }
-
-  const headers = lines[0].split("\t").map(h => h.trim());
-  const cards = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split("\t");
-    const card = {};
-
-    headers.forEach((header, index) => {
-      card[header] = values[index]?.trim() ?? "";
-    });
-
-    // Optional but useful for debugging provenance
-    card.__set = sourceFile;
-
-    cards.push(card);
-  }
-
-  return cards;
-}

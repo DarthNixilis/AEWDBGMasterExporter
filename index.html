@@ -1,173 +1,113 @@
-<!-- FILE: index.html -->
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AEW DBG Master Exporter</title>
-  <style>
-    :root { --bg:#f4f5f7; --card:#fff; --ink:#1f2328; --muted:#656d76; --line:#d0d7de; }
-    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--ink); }
-    header { position:sticky; top:0; z-index:10; background:#fff; box-shadow:0 2px 10px rgba(0,0,0,.08); padding:14px 14px 10px; }
-    h1 { margin:0; font-size:22px; text-align:center; }
-    .build { text-align:center; color:var(--muted); font-size:12px; margin-top:4px; }
-    .status { text-align:center; margin-top:8px; font-size:13px; color:var(--muted) }
-    main { padding:12px; max-width:980px; margin:0 auto; }
-    .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; }
-    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
-    label { font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
-    select, input[type="text"] { width:100%; padding:10px; border-radius:10px; border:1px solid var(--line); font-size:14px; background:#fff; }
-    .field { flex: 1 1 200px; min-width: 160px; }
-    button { padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#111827; color:#fff; font-weight:600; }
-    button.secondary { background:#fff; color:#111827; }
-    button:disabled { opacity:.45; }
-    .grid3 { display:grid; gap:10px; grid-template-columns: repeat(1, minmax(0, 1fr)); }
-    @media (min-width: 680px) { .grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (min-width: 980px) { .grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-
-    /* Toasts */
-    #toastHost { position: fixed; left: 12px; right: 12px; bottom: 12px; display:flex; flex-direction:column; gap:10px; pointer-events:none; z-index:9999; }
-    .toast { pointer-events:auto; background: rgba(10,10,12,.94); color:#fff; border-radius:14px; padding:12px; border:1px solid rgba(255,255,255,.12); box-shadow:0 8px 24px rgba(0,0,0,.25); }
-    .toastTop { display:flex; justify-content:space-between; align-items:center; gap:10px; }
-    .toastTitle { font-weight:800; }
-    .toastMsg { white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:12px; opacity:.95; margin-top:8px; }
-    .toastBtns { display:flex; gap:8px; }
-    .toastBtns button { background:#fff; color:#111827; padding:8px 10px; border-radius:10px; border:0; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEW TCG Deck Constructor</title>
+    <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-  <header>
-    <h1>Deck Starting</h1>
-    <div class="build">BUILD: 2026-01-06 / file import + compact add buttons</div>
-    <div id="statusLine" class="status">Status: Loading… Sets: (loading) Cards: (loading)</div>
-  </header>
+    <header>
+        <h1>AEW TCG Deck Constructor</h1>
+    </header>
 
-  <main>
-    <div class="card">
-      <p style="margin:0;color:var(--muted);">
-        Pick Personas. Starter/Kit cards auto-load using <b>Starting</b>. Kit cards never appear in Card Pool. Persona identity is Name only.
-      </p>
+    <main class="container">
+        <div class="search-panel">
+            <div class="panel-header">
+                <h2>Card Pool</h2>
+                <div class="view-controls-container">
+                    <div id="gridSizeControls" class="grid-size-controls">
+                        <label>Grid Columns:</label>
+                        <button data-columns="2">2</button>
+                        <button data-columns="3">3</button>
+                        <button data-columns="4">4</button>
+                    </div>
+                    <button id="viewModeToggle">Switch to List View</button>
+                </div>
+            </div>
+            <div class="filter-controls">
+                <input type="text" id="searchInput" placeholder="Search card name or text...">
+                <div id="cascadingFiltersContainer" class="cascading-filters"></div>
+                <div class="sort-filter-container">
+                    <div class="sort-controls">
+                        <label for="sortSelect">Sort by:</label>
+                        <select id="sortSelect">
+                            <option value="alpha-asc">Name (A-Z)</option>
+                            <option value="alpha-desc">Name (Z-A)</option>
+                            <option value="cost-asc">Cost (Low-High)</option>
+                            <option value="cost-desc">Cost (High-Low)</option>
+                            <option value="damage-desc">Damage (High-Low)</option>
+                            <option value="damage-asc">Damage (Low-High)</option>
+                            <option value="momentum-desc">Momentum (High-Low)</option>
+                            <option value="momentum-asc">Momentum (Low-High)</option>
+                        </select>
+                    </div>
+                    <div class="cost-filter-controls">
+                        <label><input type="checkbox" id="showZeroCost" checked> Show 0-Cost</label>
+                        <label><input type="checkbox" id="showNonZeroCost" checked> Show Non-0-Cost</label>
+                    </div>
+                </div>
+            </div>
+            <div id="searchResults" class="card-list list-view"></div>
+        </div>
 
-      <div class="row" style="margin-top:10px;">
-        <div class="field">
-          <label for="personaWrestler">Wrestler</label>
-          <select id="personaWrestler"><option value="">(loading…)</option></select>
+        <div class="deck-panel">
+            <div class="persona-selection">
+                <h2>Persona</h2>
+                <select id="wrestlerSelect"><option value="">-- Select Wrestler --</option></select>
+                <select id="managerSelect"><option value="">-- Select Manager --</option></select>
+            </div>
+
+            <div id="personaDisplay" class="persona-display-container"></div>
+
+            <h2 id="startingDeckHeader">Starting Deck (<span id="startingDeckCount">0</span>/24)</h2>
+            <div id="startingDeckList" class="deck-list-small"></div>
+
+            <h2 id="purchaseDeckHeader">Purchase Deck (<span id="purchaseDeckCount">0</span>/36+)</h2>
+            <div id="purchaseDeckList" class="deck-list-small"></div>
+
+            <div class="deck-actions">
+                <button id="importDeck">Import Deck</button>
+                <button id="exportDeck">Export as Text</button>
+                <button id="exportLackeyBtn">Export for LackeyCCG</button>
+                <button id="exportAsImageBtn">Export as Image</button>
+                <button id="exportAllCards">Export All Cards as Images</button>
+                <button id="clearDeck">Clear Deck</button>
+            </div>
         </div>
-        <div class="field">
-          <label for="personaManager">Manager</label>
-          <select id="personaManager"><option value="">(loading…)</option></select>
+    </main>
+
+    <div id="cardModal" class="modal-backdrop" style="display: none;">
+        <div class="modal-content">
+            <span class="modal-close-button">&times;</span>
+            <div id="modalCardContent"></div>
         </div>
-        <div class="field">
-          <label for="personaCallName">Call Name</label>
-          <select id="personaCallName"><option value="">(loading…)</option></select>
-        </div>
-        <div class="field">
-          <label for="personaFaction">Faction</label>
-          <select id="personaFaction"><option value="">(loading…)</option></select>
-        </div>
-        <div class="field" style="flex:0 0 auto;">
-          <button id="clearPersonas" class="secondary" style="width:180px;">Clear Personas</button>
-        </div>
-      </div>
     </div>
 
-    <div class="card">
-      <div class="row" style="justify-content:space-between;">
-        <div style="flex:1;">
-          <h2 style="margin:0 0 8px;">Starting Draw Deck</h2>
-          <div id="startingDeckSummary" style="color:var(--muted); font-size:13px;">—</div>
+    <div id="importModal" class="modal-backdrop" style="display: none;">
+        <div class="modal-content">
+            <span class="modal-close-button">&times;</span>
+            <h3>Import Decklist</h3>
+            <div class="import-controls">
+                <label for="deckFileInput">Import from .txt file:</label>
+                <input type="file" id="deckFileInput" accept=".txt">
+                <textarea id="deckTextInput" rows="10" placeholder="Or paste decklist here..."></textarea>
+                <button id="processImportBtn">Import</button>
+            </div>
+            <div id="importStatus" class="import-status"></div>
         </div>
-        <div style="flex:1;">
-          <h2 style="margin:0 0 8px;">Purchase Deck</h2>
-          <div id="purchaseDeckSummary" style="color:var(--muted); font-size:13px;">—</div>
-        </div>
-      </div>
-
-      <div class="row" style="margin-top:10px;">
-        <button id="downloadTxt" class="secondary" style="flex:1;">Download TXT</button>
-        <button id="downloadDek" class="secondary" style="flex:1;">Download DEK</button>
-        <button id="clearDeck" class="secondary" style="flex:1;">Clear Deck</button>
-      </div>
-
-      <div class="row" style="margin-top:10px;">
-        <div class="field" style="flex:1;">
-          <label>Import deck file</label>
-          <input id="importFile" type="file" />
-          <div id="importFileName" style="color:var(--muted); font-size:12px; margin-top:6px;">(no file selected)</div>
-        </div>
-        <div class="field" style="flex:0 0 auto;">
-          <button id="importBtn" style="width:160px;">Import</button>
-        </div>
-      </div>
     </div>
 
-    <div class="card">
-      <h2 style="margin:0 0 8px;">Filters</h2>
-      <div class="field" style="margin-bottom:10px;">
-        <label for="searchInput">Search (name + game text)</label>
-        <input id="searchInput" type="text" placeholder="Try: 'Momentum', 'Submission', 'Cheap Pop'…" />
-      </div>
+    <!-- Test button for debugging -->
+    <button onclick="testExport()" style="position: fixed; bottom: 10px; right: 10px; z-index: 10000; padding: 10px; background: red; color: white; border: none; border-radius: 4px; cursor: pointer;">
+        TEST EXPORT
+    </button>
 
-      <div class="row">
-        <div class="field">
-          <label for="typeFilter">Type</label>
-          <select id="typeFilter"><option value="All">All</option></select>
-        </div>
-        <div class="field">
-          <label for="traitFilter">Trait</label>
-          <select id="traitFilter"><option value="All">All</option></select>
-        </div>
-        <div class="field">
-          <label for="setFilter">Set</label>
-          <select id="setFilter"><option value="All">All</option></select>
-        </div>
-      </div>
-
-      <div class="row" style="margin-top:10px;">
-        <button id="clearFilters" class="secondary">Clear Filters</button>
-        <button id="showMore" class="secondary">Show more</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2 style="margin:0 0 8px;">Starter / Kit cards for selected Personas</h2>
-      <div id="starterCards" class="grid3"></div>
-    </div>
-
-    <div class="card">
-      <h2 style="margin:0 0 8px;">General Card Pool</h2>
-      <div id="cardPool" class="grid3">Loading…</div>
-    </div>
-  </main>
-
-  <div id="toastHost"></div>
-
-  <!-- Bootloader: MUST show errors even if renderer.js fails to import -->
-  <script>
-    // FILE: index.html (bootloader)
-    (function () {
-      const statusEl = document.getElementById("statusLine");
-      function setStatus(t) { if (statusEl) statusEl.textContent = t; }
-
-      function showFatal(title, err) {
-        const msg =
-          err && (err.stack || err.message) ? (err.stack || err.message)
-          : (err ? String(err) : "");
-        setStatus("Status: ERROR (see popup)  Sets: (?)  Cards: (?)");
-        alert(title + "\n\n" + msg);
-      }
-
-      window.AEW_showFatal = showFatal;
-
-      window.addEventListener("error", (e) => showFatal("App Error", e.error || e.message));
-      window.addEventListener("unhandledrejection", (e) => showFatal("Unhandled Promise Rejection", e.reason));
-    })();
-  </script>
-
-  <script type="module">
-    // Force a fresh fetch so mobile caches don’t gaslight you.
-    const v = Date.now();
-    import(`./renderer.js?v=${v}`).catch((e) => window.AEW_showFatal("Boot failed (module load/import).", e));
-  </script>
+    <!-- Load dependencies FIRST -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <script type="module" src="main.js"></script>
 </body>
-</html>
+</html> 

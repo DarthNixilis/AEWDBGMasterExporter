@@ -71,7 +71,7 @@ button.btn-purchase { background-color: var(--purchase-color); color: white; bor
 #exportAsImageBtn { background-color: var(--success-color); color: white; }
 #exportAllCards { background-color: #20c997; color: white; }
 #exportAllCards:hover { background-color: #1aa179; }
-.persona-display-container { border: 1px solid var(--border-color); border-radius: 4px; padding: 10px; margin-bottom: 15px; display: block; }
+.persona-display-container { border: 1px solid var(--border-color); border-radius: 4px; padding: 10px; margin-bottom: 15px; display: none; }
 .persona-display-container h3 { margin-top: 0; font-size: 1.1em; }
 .persona-card-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .persona-card-item { background-color: #f8f9fa; border: 1px solid var(--border-color); border-radius: 4px; padding: 5px 10px; cursor: pointer; font-size: 0.9em; }
@@ -81,12 +81,13 @@ button.btn-purchase { background-color: var(--purchase-color); color: white; bor
 .modal-close-button { position: absolute; top: 10px; right: 15px; font-size: 1.5rem; font-weight: bold; cursor: pointer; }
 
 /* --- THIS IS THE GLOBAL FIX FOR ALL CARD IMAGES --- */
+/* This targets any image that is inside a container that also holds our placeholder logic */
 #modalCardContent img,
 .card-visual img {
     width: 100%;
     height: auto;
     display: block;
-    max-width: 100%;
+    max-width: 100%; /* Redundant but safe */
 }
 /* -------------------------------------------------- */
 
@@ -114,46 +115,6 @@ button.btn-purchase { background-color: var(--purchase-color); color: white; bor
 .import-controls textarea { width: 95%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; resize: vertical; font-family: inherit; }
 .import-controls button { padding: 10px 15px; background-color: var(--primary-color); color: white; border: none; border-radius: 4px; cursor: pointer; align-self: flex-end; }
 .import-status { margin-top: 15px; font-size: 0.9em; }
-
-/* NEW STYLES ADDED FOR THE FIXES */
-.persona-selection {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.persona-selection select {
-    width: 100%;
-    padding: 10px;
-    margin-bottom: 5px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    font-size: 16px;
-    background-color: white;
-}
-
-/* Improve list view appearance */
-.card-list.list-view .card-item:hover {
-    background-color: #f8f9fa;
-}
-
-.card-list.list-view .card-title {
-    font-weight: bold;
-    color: #333;
-}
-
-.card-list.list-view .card-buttons button:hover {
-    opacity: 0.9;
-}
-
-/* Grid column buttons active state */
-.grid-size-controls button.active {
-    background-color: var(--primary-color) !important;
-    color: white !important;
-    border-color: var(--primary-color) !important;
-}
-
 @media (max-width: 768px) { 
     .container { flex-direction: column; padding: 10px; } 
     .search-panel, .deck-panel { min-width: 100%; width: 100%; } 
@@ -161,59 +122,4 @@ button.btn-purchase { background-color: var(--purchase-color); color: white; bor
     .card-list.grid-view { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; } 
     .deck-actions { flex-direction: column; align-items: stretch; }
     .deck-actions button { margin-left: 0; margin-bottom: 10px; }
-    .persona-selection select { font-size: 14px; padding: 8px; }
 }
-
-/* Container for the Card + its Add Buttons */
-.card-container {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    background: white;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-}
-
-/* The Add buttons layout */
-.card-controls {
-    display: flex;
-    gap: 5px;
-}
-
-.card-controls button {
-    flex: 1;
-    padding: 8px 4px;
-    font-size: 12px;
-    cursor: pointer;
-    background: #007bff;
-    color: white;
-    border: none;
-    border-radius: 4px;
-}
-
-.card-controls button:hover {
-    background: #0056b3;
-}
-
-/* Deck list row layout */
-.deck-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px;
-    border-bottom: 1px solid #eee;
-    background: #fff;
-}
-
-.deck-item-controls {
-    display: flex;
-    gap: 5px;
-}
-
-.deck-item-controls button {
-    padding: 4px 8px;
-    font-size: 11px;
-}
-
-.danger { background-color: #dc3545 !important; color: white; }
