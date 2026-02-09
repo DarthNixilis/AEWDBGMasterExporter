@@ -9,16 +9,16 @@ export function generateCardVisualHTMLForExport(card, options = {}) {
         switch (type) {
             case 'Action':      return '#9B59B6'; // purple
             case 'Wrestler':    return '#3E3E3E'; // dark gray
-            case 'Manager':     return '#3E3E3E'; // (not shown, but matches persona vibe)
+            case 'Manager':     return '#3E3E3E'; // persona vibe
             case 'Response':    return '#C05050'; // red
             case 'Submission':  return '#63A85C'; // green
             case 'Grapple':     return '#D79A1E'; // orange
             case 'Strike':      return '#4D82C6'; // blue
             case 'Boon':        return '#18A7B5'; // teal
             case 'Faction':     return '#28C2A1'; // mint/teal-green
-            case 'Injury':      return '#FF7900'; // gray
-            case 'Call Name':   return '#2E86C1'; // fallback (not in your shots)
-            default:            return '#777777'; // safe fallback
+            case 'Injury':      return '#FF7900'; // orange
+            case 'Call Name':   return '#2E86C1'; // fallback
+            default:            return '#777777';
         }
     };
 
@@ -39,28 +39,97 @@ export function generateCardVisualHTMLForExport(card, options = {}) {
     // ---------------------------
     // LACKEY 214x308 TEMPLATE
     // Changes in this version:
-    // - Cost box moved BELOW title (so long titles never get clipped)
-    // - Type-bar colors matched to your examples
+    // 1) Title is one line only (no wrap)
+    // 2) Cost + D/M block moved up directly under title (reduced dead space)
+    // 3) If card has Starting, show persona name (minus Wrestler/Manager) under Cost box,
+    //    aligned to the M row (and do NOT waste text-box space for the kit header)
+    // 4) Text wrapping: avoid mid-word breaks (wrap at spaces; only break long tokens if unavoidable)
     // ---------------------------
     if (isLackeySize) {
         const typeBarColor = getCardColor(card.card_type);
         const costDisplay = (card.cost !== null && card.cost !== undefined) ? card.cost : '';
         const damageDisplay = (card.damage !== null && card.damage !== undefined) ? card.damage : '0';
         const momentumDisplay = (card.momentum !== null && card.momentum !== undefined) ? card.momentum : '0';
-        const gameText = card.text_box?.raw_text ? formatTextPlainish(card.text_box.raw_text) : '';
 
-        // Layout constants for clarity
+        let gameText = card.text_box?.raw_text ? formatTextPlainish(card.text_box.raw_text) : '';
+
+        // Target (for maneuvers)
+        let target = '';
+        if (card.text_box && card.text_box.traits) {
+            const targetTrait = card.text_box.traits.find(t => t && t.name && t.name.trim() === 'Target');
+            if (targetTrait && targetTrait.value) {
+                target = targetTrait.value;
+            }
+        }
+
+        // Starting persona label (strip Wrestler/Manager from the end)
+        let startingPersonaLabel = '';
+        if (card && card['Starting'] && String(card['Starting']).trim() !== '') {
+            startingPersonaLabel = String(card['Starting']).trim()
+                .replace(/\s*(Wrestler|Manager)\s*$/i, '')
+                .trim();
+        }
+
+        // Signature For kit (optional fallback only when NOT Starting)
+        let signaturePersonaLabel = '';
+        if (!startingPersonaLabel && card && card['Signature For'] && String(card['Signature For']).trim() !== '') {
+            signaturePersonaLabel = String(card['Signature For']).trim()
+                .replace(/\s*(Wrestler|Manager)\s*$/i, '')
+                .trim();
+        }
+
+        const isManeuver = ['Strike', 'Grapple', 'Submission'].includes(card.card_type);
+        const finalDamageDisplay = isManeuver && target ? `${damageDisplay} [T:${target}]` : damageDisplay;
+
+        // Only prepend kit header into TEXT BOX when it's Signature For (not Starting)
+        // because Starting gets moved to the header area under Cost as requested.
+        const isPersonaCard = ['Wrestler', 'Manager', 'Call Name', 'Faction'].includes(card.card_type);
+        const showSignatureHeaderInText = signaturePersonaLabel && !isPersonaCard;
+        if (showSignatureHeaderInText) {
+            gameText = `<div style="font-size: 14px; color: #666; margin-bottom: 8px; border-bottom: 1px dashed #ddd; padding-bottom: 5px;">${signaturePersonaLabel}</div>${gameText}`;
+        }
+
+        // Layout constants
         const titleTop = 6;
         const titleLeft = 6;
         const titleRight = 6;
 
-        // Reserve a fixed title “band” so stats + cost start below it
-        // This prevents overlap even if the title wraps to 2 lines.
-        const titleBandHeight = 46;
+        // Title is one line only
+        const titleBandHeight = 24;
 
-        const statsTop = titleTop + titleBandHeight;   // below title
-        const costTop = titleTop + titleBandHeight;    // same row as stats
+        // Move stats + cost up
+        const statsTop = titleTop + titleBandHeight + 2;
+        const costTop = statsTop;
         const costRight = 6;
+
+        // Persona label under cost aligned with the M row
+        const personaLabelTop = statsTop + 42 + 6;
+
+        // Aggressive text sizing
+        let estimatedFontSize = 20;
+        let estimatedLineHeight = 1.05;
+
+        if (gameText) {
+            const textOnly = gameText.replace(/<[^>]*>/g, '');
+            const textLength = textOnly.length;
+            const lineCount = (gameText.match(/<br>/g) || []).length + 1;
+
+            if (textLength > 400 || lineCount > 8) {
+                estimatedFontSize = 10;
+                estimatedLineHeight = 0.9;
+            } else if (textLength > 300 || lineCount > 6) {
+                estimatedFontSize = 12;
+                estimatedLineHeight = 0.95;
+            } else if (textLength > 200 || lineCount > 4) {
+                estimatedFontSize = 14;
+                estimatedLineHeight = 1.0;
+            } else if (textLength > 100 || lineCount > 3) {
+                estimatedFontSize = 16;
+                estimatedLineHeight = 1.0;
+            }
+
+            console.log(`Card "${card.title}": ${textLength} chars, ${lineCount} lines -> font-size: ${estimatedFontSize}px`);
+        }
 
         return `
             <div class="aew-lackey-card" style="
@@ -74,7 +143,7 @@ export function generateCardVisualHTMLForExport(card, options = {}) {
                 font-family: Arial, sans-serif;
                 box-sizing: border-box;
             ">
-                <!-- Title (top, can wrap to 2 lines) -->
+                <!-- Title (ONE LINE ONLY) -->
                 <div class="aew-lackey-title" style="
                     position: absolute;
                     left: ${titleLeft}px;
@@ -83,12 +152,13 @@ export function generateCardVisualHTMLForExport(card, options = {}) {
                     font-weight: 900;
                     font-size: 20px;
                     line-height: 1.0;
-                    max-height: ${titleBandHeight}px;
+                    height: ${titleBandHeight}px;
                     overflow: hidden;
-                    white-space: normal;
+                    white-space: nowrap;
+                    text-overflow: ellipsis;
                 ">${card.title || ''}</div>
 
-                <!-- Stats left: D / M (starts below title band) -->
+                <!-- Stats left: D / M (moved up) -->
                 <div class="aew-lackey-stats" style="
                     position: absolute;
                     left: 8px;
@@ -97,11 +167,11 @@ export function generateCardVisualHTMLForExport(card, options = {}) {
                     font-size: 42px;
                     line-height: 0.95;
                 ">
-                    <div style="font-size: 42px;">D: ${damageDisplay}</div>
+                    <div style="font-size: 42px;">D: ${finalDamageDisplay}</div>
                     <div style="font-size: 42px; margin-top: 6px;">M: ${momentumDisplay}</div>
                 </div>
 
-                <!-- Cost box (moved below title band so it can't cut off title) -->
+                <!-- Cost box (moved up) -->
                 <div class="aew-lackey-costbox" style="
                     position: absolute;
                     top: ${costTop}px;
@@ -118,51 +188,96 @@ export function generateCardVisualHTMLForExport(card, options = {}) {
                     box-sizing: border-box;
                 ">${costDisplay}</div>
 
-                <!-- Type bar -->
+                <!-- Starting Persona label under cost on the M line -->
+                ${startingPersonaLabel ? `
+                    <div class="aew-lackey-startinglabel" style="
+                        position: absolute;
+                        top: ${personaLabelTop}px;
+                        right: ${costRight}px;
+                        width: 56px;
+                        text-align: center;
+                        font-weight: 900;
+                        font-size: 9px;
+                        line-height: 1.0;
+                        color: #000;
+                        overflow: hidden;
+                        white-space: nowrap;
+                        text-overflow: ellipsis;
+                    ">${startingPersonaLabel}</div>
+                ` : ''}
+
+                <!-- Type bar (small) -->
                 <div class="aew-lackey-typebar" style="
                     position: absolute;
                     left: 10px;
                     right: 10px;
-                    top: 150px;
-                    height: 40px;
+                    top: 132px;
+                    height: 24px;
                     background: ${typeBarColor};
                     border: 2px solid #000;
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     font-weight: 900;
-                    font-size: 24px;
-                    letter-spacing: 1px;
+                    font-size: 18px;
+                    letter-spacing: 0.8px;
                     color: #fff;
                     text-transform: uppercase;
                     box-sizing: border-box;
                 ">${card.card_type || ''}</div>
 
-                <!-- Text box -->
+                <!-- Text box with auto-sizing (no mid-word breaks) -->
                 <div class="aew-lackey-textbox aew-export-textbox" style="
                     position: absolute;
                     left: 10px;
                     right: 10px;
-                    top: 204px;
+                    top: 164px;
                     bottom: 10px;
                     background: #fff;
                     border: 2px solid #DDD;
                     box-sizing: border-box;
                     padding: 10px;
                     font-weight: 800;
-                    font-size: 20px; /* auto-fit will reduce if needed */
-                    line-height: 1.05;
-                    overflow: hidden; /* no scroll, shrink instead */
+                    font-size: ${estimatedFontSize}px;
+                    line-height: ${estimatedLineHeight};
+                    overflow: hidden;
                     text-align: center;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                 ">
-                    ${gameText}
+                    <div class="text-content" style="
+                        width: 100%;
+                        height: 100%;
+                        overflow: hidden;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    ">
+                        <div style="
+                            max-width: 100%;
+                            max-height: 100%;
+                            overflow: hidden;
+
+                            /* IMPORTANT: avoid mid-word breaks */
+                            white-space: normal;
+                            word-break: normal;
+                            overflow-wrap: break-word;
+
+                            /* Optional: avoid weird auto hyphens */
+                            hyphens: none;
+
+                            font-size: inherit;
+                            line-height: inherit;
+                        ">${gameText}</div>
+                    </div>
                 </div>
             </div>
         `;
     }
 
     // ---------------------------
-    // ORIGINAL (STANDARD) EXPORT TEMPLATE (kept)
+    // ORIGINAL (STANDARD) EXPORT TEMPLATE
     // ---------------------------
 
     const titleFontSize = 20;
@@ -186,7 +301,6 @@ export function generateCardVisualHTMLForExport(card, options = {}) {
     };
 
     const getCardColorStandard = (type) => {
-        // keep existing standard mapping behavior as before
         switch (type) {
             case 'Action': return '#7D4AA6';
             case 'Strike': return '#FF6B6B';
@@ -202,6 +316,33 @@ export function generateCardVisualHTMLForExport(card, options = {}) {
             default: return '#FFFFFF';
         }
     };
+
+    // Get target and kit info
+    let target = '';
+    if (card.text_box && card.text_box.traits) {
+        const targetTrait = card.text_box.traits.find(t => t && t.name && t.name.trim() === 'Target');
+        if (targetTrait && targetTrait.value) {
+            target = targetTrait.value;
+        }
+    }
+
+    let kitPersona = '';
+    if (card && card['Starting'] && card['Starting'].trim() !== '') {
+        const personaName = card['Starting'].trim();
+        kitPersona = personaName.replace(/\s*Wrestler$/, '');
+    }
+
+    // Add target to damage display
+    const isManeuver = ['Strike', 'Grapple', 'Submission'].includes(card.card_type);
+    const finalDamageDisplay = isManeuver && target ? `${card.damage ?? '0'} [T:${target}]` : (card.damage ?? '0');
+
+    // Add kit info to game text if applicable
+    const isPersonaCard = ['Wrestler', 'Manager', 'Call Name', 'Faction'].includes(card.card_type);
+    const showKitInfo = kitPersona && !isPersonaCard;
+    let gameText = card.text_box?.raw_text ? formatText(card.text_box.raw_text) : 'No text';
+    if (showKitInfo) {
+        gameText = `<div style="font-size: 12px; color: #666; margin-bottom: 8px; border-bottom: 1px dashed #ddd; padding-bottom: 5px;">${kitPersona}</div>${gameText}`;
+    }
 
     const html = `
         <div class="card" style="
@@ -291,7 +432,7 @@ export function generateCardVisualHTMLForExport(card, options = {}) {
                             color: #e74c3c;
                             line-height: 0.8;
                             text-shadow: 2px 2px 3px rgba(0,0,0,0.3);
-                        ">${card.damage}</div>
+                        ">${finalDamageDisplay}</div>
                     </div>
                 ` : ''}
 
@@ -331,7 +472,7 @@ export function generateCardVisualHTMLForExport(card, options = {}) {
                 line-height: 1.5;
                 font-weight: bold;
             ">
-                ${card.text_box.raw_text ? formatText(card.text_box.raw_text) : 'No text'}
+                ${gameText}
             </div>
 
             <!-- Set Indicator -->
@@ -349,7 +490,7 @@ export function generateCardVisualHTMLForExport(card, options = {}) {
             </div>
 
             <!-- Kit Card Indicator -->
-            ${state.isKitCard(card) ? `
+            ${state.isKitCard && state.isKitCard(card) ? `
                 <div style="
                     position: absolute;
                     top: 8px;
@@ -372,4 +513,58 @@ export function generateCardVisualHTMLForExport(card, options = {}) {
     `;
 
     return html;
+}
+
+// Add this function to handle auto-sizing in master-export.js
+export function applyLackeyTextAutoSizing(cardContainer) {
+    if (!cardContainer) return;
+
+    const textBox = cardContainer.querySelector('.aew-lackey-textbox');
+    const textContent = textBox?.querySelector('.text-content > div');
+
+    if (!textBox || !textContent) return;
+
+    const textOnly = textContent.textContent || textContent.innerText;
+    const textLength = textOnly.length;
+
+    const textBoxWidth = textBox.offsetWidth - 20;
+    const textBoxHeight = textBox.offsetHeight - 20;
+
+    let fontSize = 20;
+    let lineHeight = 1.05;
+
+    if (textLength > 400) {
+        fontSize = 10;
+        lineHeight = 0.9;
+    } else if (textLength > 300) {
+        fontSize = 12;
+        lineHeight = 0.95;
+    } else if (textLength > 200) {
+        fontSize = 14;
+        lineHeight = 1.0;
+    } else if (textLength > 100) {
+        fontSize = 16;
+        lineHeight = 1.0;
+    }
+
+    textContent.style.fontSize = fontSize + 'px';
+    textContent.style.lineHeight = lineHeight;
+
+    let attempts = 0;
+    while ((textContent.scrollHeight > textBoxHeight || textContent.scrollWidth > textBoxWidth) &&
+        fontSize > 8 && attempts < 20) {
+        fontSize -= 0.5;
+        lineHeight = Math.max(0.8, lineHeight - 0.01);
+        textContent.style.fontSize = fontSize + 'px';
+        textContent.style.lineHeight = lineHeight;
+        attempts++;
+    }
+
+    if (textContent.scrollHeight > textBoxHeight || textContent.scrollWidth > textBoxWidth) {
+        textBox.style.overflowY = 'auto';
+        textBox.style.alignItems = 'flex-start';
+        textBox.style.justifyContent = 'flex-start';
+    }
+
+    console.log(`Auto-sized "${textOnly.substring(0, 30)}...": ${fontSize}px font, ${lineHeight} line-height`);
 }

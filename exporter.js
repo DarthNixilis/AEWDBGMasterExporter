@@ -7,15 +7,29 @@ export function generatePlainTextDeck() {
     const activePersonaTitles = [];
     if (state.selectedWrestler) activePersonaTitles.push(state.selectedWrestler.title);
     if (state.selectedManager) activePersonaTitles.push(state.selectedManager.title);
-    const kitCards = state.cardDatabase.filter(card => state.isKitCard(card) && activePersonaTitles.includes(card['Signature For'])).sort((a, b) => a.title.localeCompare(b.title));
+    if (state.selectedCallName) activePersonaTitles.push(state.selectedCallName.title);
+    if (state.selectedFaction) activePersonaTitles.push(state.selectedFaction.title);
+    
+    // Get kit cards for ALL personas (not just wrestler/manager)
+    // Kit cards are non-persona cards that have a persona in their Starting field
+    const kitCards = state.cardDatabase.filter(card => 
+        state.isKitCard(card) && 
+        !['Wrestler', 'Manager', 'Call Name', 'Faction'].includes(card.card_type) &&
+        activePersonaTitles.includes(card['Starting'].trim())
+    ).sort((a, b) => a.title.localeCompare(b.title));
     
     // Build the basic deck export
     let text = `Wrestler: ${state.selectedWrestler ? state.getKitPersona(state.selectedWrestler) : 'None'}\n`;
-    text += `Manager: ${state.selectedManager ? state.selectedManager.title : 'None'}\n`;
+    text += `Manager: ${state.selectedManager ? state.getKitPersona(state.selectedManager) : 'None'}\n`;
+    text += `Call Name: ${state.selectedCallName ? state.selectedCallName.title : 'None'}\n`;
+    text += `Faction: ${state.selectedFaction ? state.selectedFaction.title : 'None'}\n`;
+    
+    // List all kit cards with their persona
     kitCards.forEach((card, index) => { 
-        const personaName = state.getKitPersona(card) || card['Signature For'] || 'Unknown';
+        const personaName = state.getKitPersona(card) || card['Starting'] || 'Unknown';
         text += `Kit${index + 1}: ${card.title} (${personaName})\n`; 
     });
+    
     text += `\n--- Starting Deck (${state.startingDeck.length}/24) ---\n`;
     const startingCounts = state.startingDeck.reduce((acc, cardTitle) => { 
         const card = state.cardTitleCache[cardTitle];
@@ -30,6 +44,7 @@ export function generatePlainTextDeck() {
         return acc; 
     }, {});
     Object.entries(startingCounts).sort((a, b) => a[0].localeCompare(b[0])).forEach(([cardLine, count]) => { text += `${count}x ${cardLine}\n`; });
+    
     text += `\n--- Purchase Deck (${state.purchaseDeck.length}/36+) ---\n`;
     const purchaseCounts = state.purchaseDeck.reduce((acc, cardTitle) => { 
         const card = state.cardTitleCache[cardTitle];
@@ -297,7 +312,7 @@ function generateDeckAnalysis() {
             
             // Count wrestler-specific cards
             const wrestlerCards = allCards.filter(card => 
-                card && card['Signature For'] === state.selectedWrestler.title);
+                card && card['Starting'] === state.selectedWrestler.title);
             analysis += `    Wrestler-specific cards in deck: ${wrestlerCards.length}\n`;
         }
         if (state.selectedManager) {
@@ -305,7 +320,7 @@ function generateDeckAnalysis() {
             
             // Count manager-specific cards
             const managerCards = allCards.filter(card => 
-                card && card['Signature For'] === state.selectedManager.title);
+                card && card['Starting'] === state.selectedManager.title);
             analysis += `    Manager-specific cards in deck: ${managerCards.length}\n`;
         }
     } else {
@@ -350,7 +365,7 @@ export function generateLackeyCCGDeck() {
     const activePersonaTitles = [];
     if (state.selectedWrestler) activePersonaTitles.push(state.selectedWrestler.title);
     if (state.selectedManager) activePersonaTitles.push(state.selectedManager.title);
-    const kitCards = state.cardDatabase.filter(card => state.isKitCard(card) && activePersonaTitles.includes(card['Signature For']));
+    const kitCards = state.cardDatabase.filter(card => state.isKitCard(card) && activePersonaTitles.includes(card['Starting']));
     
     let text = '';
     
@@ -445,7 +460,7 @@ export async function exportDeckAsImage() {
         uniquePersonaAndKit.push(state.selectedManager);
         activePersonaTitles.push(state.selectedManager.title);
     }
-    const kitCards = state.cardDatabase.filter(card => state.isKitCard(card) && activePersonaTitles.includes(card['Signature For']));
+    const kitCards = state.cardDatabase.filter(card => state.isKitCard(card) && activePersonaTitles.includes(card['Starting']));
     uniquePersonaAndKit.push(...kitCards);
     const finalUniquePersonaAndKit = [...new Map(uniquePersonaAndKit.map(card => [card.title, card])).values()];
     const mainDeckCards = [...state.startingDeck, ...state.purchaseDeck].map(title => state.cardTitleCache[title]);
