@@ -84,7 +84,7 @@ export async function exportCardsWithOptions(options = {}) {
         // Update progress UI
         updateProgressUI(0, cardsToExport.length, 'Preparing export...');
 
-        // Print sheets: 9 cards per 8.5x11" page @ 300 DPI (same renderer as deck-list image export)
+        // Print sheets: 9 cards per 8.5x11" page @ 300 DPI (like decklist print export)
         if (format === 'printsheet') {
             await exportAsPrintSheets(cardsToExport, imageWidth, imageHeight, imageSize,
                 state, generateCardVisualHTMLForExport, applyLackeyTextAutoSizing);
@@ -258,26 +258,23 @@ async function exportAsIndividual(cards, width, height, scale, naming, imageSize
 }
 
 // Export as print sheets: 9 cards per 8.5x11" page @ 300 DPI (2.5x3.5" cards)
-// Uses the SAME renderer as the deck-list image export so both look identical.
+// Uses the SAME renderer as exportDeckAsImage (generatePlaytestCardHTML) so the
+// layout matches the deck image export exactly.
 async function exportAsPrintSheets(cards, baseWidth, baseHeight, imageSize, state, generateCardVisualHTMLForExport, applyLackeyTextAutoSizing) {
     if (typeof html2canvas === 'undefined') {
         throw new Error('html2canvas library not loaded. Please refresh the page.');
     }
 
-    // KEY: use the playtest renderer that the deck export uses
+    // Use the playtest renderer so print sheets match the deck image export layout
     const { generatePlaytestCardHTML } = await import('./card-renderer.js');
 
     const DPI = 300;
-    const PAGE_WIDTH  = 8.5 * DPI;   // 2550 px
-    const PAGE_HEIGHT = 11  * DPI;   // 3300 px
-    const CARD_WIDTH  = 2.5 * DPI;   // 750 px
-    const CARD_HEIGHT = 3.5 * DPI;   // 1050 px
-    const MARGIN      = 0.5 * DPI;   // 3 cols x 3 rows
+    const PAGE_WIDTH = 8.5 * DPI;   // 2550 px
+    const PAGE_HEIGHT = 11 * DPI;   // 3300 px
+    const CARD_WIDTH = 2.5 * DPI;   // 750 px
+    const CARD_HEIGHT = 3.5 * DPI;  // 1050 px
+    const MARGIN = 0.5 * DPI;       // 0.5" margins -> 3 cols x 3 rows
     const CARDS_PER_PAGE = 9;
-
-    // Render at exactly the same pixel size as exportDeckAsImage()
-    const CARD_RENDER_WIDTH_PX  = CARD_WIDTH;   // 750
-    const CARD_RENDER_HEIGHT_PX = CARD_HEIGHT;  // 1050
 
     const totalCards = cards.length;
     const numPages = Math.ceil(totalCards / CARDS_PER_PAGE);
@@ -287,8 +284,9 @@ async function exportAsPrintSheets(cards, baseWidth, baseHeight, imageSize, stat
         return;
     }
 
+    // Off-screen render container
     const tempContainer = document.createElement('div');
-    tempContainer.style.cssText = `position:absolute; left:-10000px; top:-10000px; width:${CARD_RENDER_WIDTH_PX}px; height:${CARD_RENDER_HEIGHT_PX}px;`;
+    tempContainer.style.cssText = `position:absolute; left:-10000px; top:-10000px;`;
     document.body.appendChild(tempContainer);
 
     const dateStamp = new Date().toISOString().slice(0, 10);
@@ -313,19 +311,21 @@ async function exportAsPrintSheets(cards, baseWidth, baseHeight, imageSize, stat
                     `Rendering "${card.title}" (Page ${page + 1}/${numPages})`);
 
                 try {
-                    // Same call as exportDeckAsImage
-                    const playtestHTML = await generatePlaytestCardHTML(
-                        card, tempContainer, CARD_RENDER_WIDTH_PX, CARD_RENDER_HEIGHT_PX
-                    );
-                    tempContainer.innerHTML = playtestHTML;
-                    const playtestElement = tempContainer.firstElementChild;
+                    // Render at the standard playtest size (750x1050 = 2.5x3.5" @ 300 DPI)
+                    tempContainer.innerHTML = generatePlaytestCardHTML(card, tempContainer, 750, 1050);
+                    const cardEl = tempContainer.firstElementChild;
 
-                    // Same html2canvas options as exportDeckAsImage (scale:1, exact dimensions)
-                    const cardCanvas = await html2canvas(playtestElement, {
-                        width: CARD_RENDER_WIDTH_PX,
-                        height: CARD_RENDER_HEIGHT_PX,
+                    // Wait for DOM render
+                    await new Promise(resolve => setTimeout(resolve, 50));
+
+                    const cardCanvas = await html2canvas(cardEl, {
                         scale: 1,
-                        logging: false
+                        width: 750,
+                        height: 1050,
+                        backgroundColor: '#ffffff',
+                        logging: false,
+                        useCORS: true,
+                        allowTaint: true
                     });
 
                     const row = Math.floor(i / 3);
@@ -338,6 +338,7 @@ async function exportAsPrintSheets(cards, baseWidth, baseHeight, imageSize, stat
                 }
             }
 
+            // Download this page
             const dataUrl = pageCanvas.toDataURL('image/png');
             const a = document.createElement('a');
             a.href = dataUrl;
@@ -346,6 +347,7 @@ async function exportAsPrintSheets(cards, baseWidth, baseHeight, imageSize, stat
             a.click();
             document.body.removeChild(a);
 
+            // Small delay between page downloads
             await new Promise(resolve => setTimeout(resolve, 500));
         }
     } finally {
@@ -355,6 +357,7 @@ async function exportAsPrintSheets(cards, baseWidth, baseHeight, imageSize, stat
     updateProgressUI(totalCards, totalCards,
         `Print sheet export complete! ${numPages} page(s) downloaded.`, true);
 
+    // Auto-close modal after 3 seconds
     setTimeout(() => {
         const exportModal = document.getElementById('exportModal');
         if (exportModal) exportModal.style.display = 'none';
