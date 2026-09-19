@@ -1,3 +1,4 @@
+
 // master-export.js
 
 // Note: This file only contains export functions, no initialization code
@@ -83,7 +84,14 @@ export async function exportCardsWithOptions(options = {}) {
         
         // Update progress UI
         updateProgressUI(0, cardsToExport.length, 'Preparing export...');
-        
+
+        // Print sheets: 9 cards per 8.5x11" page @ 300 DPI (like decklist print export)
+        if (format === 'printsheet') {
+            await exportAsPrintSheets(cardsToExport, imageWidth, imageHeight, imageSize,
+                state, generateCardVisualHTMLForExport, applyLackeyTextAutoSizing);
+            return true;
+        }
+
         if (format === 'zip') {
             await exportAsZip(cardsToExport, imageWidth, imageHeight, scale, naming, imageSize, state, generateCardVisualHTMLForExport, applyLackeyTextAutoSizing);
         } else {
@@ -242,6 +250,127 @@ async function exportAsIndividual(cards, width, height, scale, naming, imageSize
             exportModal.style.display = 'none';
         }
         // Reset progress bar
+        const progressBar = document.getElementById('exportProgressBar');
+        if (progressBar) {
+            progressBar.style.width = '0%';
+            progressBar.style.background = '#4CAF50';
+        }
+    }, 3000);
+}
+
+// Export as print sheets: 9 cards per 8.5x11" page @ 300 DPI (2.5x3.5" cards)
+async function exportAsPrintSheets(cards, baseWidth, baseHeight, imageSize, state, generateCardVisualHTMLForExport, applyLackeyTextAutoSizing) {
+    if (typeof html2canvas === 'undefined') {
+        throw new Error('html2canvas library not loaded. Please refresh the page.');
+    }
+
+    const DPI = 300;
+    const PAGE_WIDTH = 8.5 * DPI;   // 2550 px
+    const PAGE_HEIGHT = 11 * DPI;   // 3300 px
+    const CARD_WIDTH = 2.5 * DPI;   // 750 px
+    const CARD_HEIGHT = 3.5 * DPI;  // 1050 px
+    const MARGIN = 0.5 * DPI;       // 0.5" margins -> 3 cols x 3 rows
+    const CARDS_PER_PAGE = 9;
+
+    const totalCards = cards.length;
+    const numPages = Math.ceil(totalCards / CARDS_PER_PAGE);
+
+    if (!confirm(`This will generate ${numPages} print sheet(s) for ${totalCards} cards (9 per page, 8.5x11" @ 300 DPI). Continue?`)) {
+        updateProgressUI(0, totalCards, 'Export cancelled.', false);
+        return;
+    }
+
+    // Off-screen render container
+    const tempContainer = document.createElement('div');
+    tempContainer.style.cssText = `position:absolute; left:-10000px; top:-10000px; width:${baseWidth}px; height:${baseHeight}px;`;
+    document.body.appendChild(tempContainer);
+
+    const dateStamp = new Date().toISOString().slice(0, 10);
+
+    try {
+        for (let page = 0; page < numPages; page++) {
+            const pageCanvas = document.createElement('canvas');
+            pageCanvas.width = PAGE_WIDTH;
+            pageCanvas.height = PAGE_HEIGHT;
+            const ctx = pageCanvas.getContext('2d');
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+
+            const startIndex = page * CARDS_PER_PAGE;
+            const pageCards = cards.slice(startIndex, startIndex + CARDS_PER_PAGE);
+
+            for (let i = 0; i < pageCards.length; i++) {
+                const card = pageCards[i];
+                const globalIndex = startIndex + i;
+
+                updateProgressUI(globalIndex, totalCards,
+                    `Rendering "${card.title}" (Page ${page + 1}/${numPages})`);
+
+                try {
+                    // Render the card at its base size, scaled up to 2.5x3.5"
+                    const cardEl = document.createElement('div');
+                    cardEl.style.cssText = `width:${baseWidth}px; height:${baseHeight}px; background:#fff;`;
+                    cardEl.innerHTML = generateCardVisualHTMLForExport(card, {
+                        width: baseWidth,
+                        height: baseHeight,
+                        size: imageSize
+                    });
+                    tempContainer.innerHTML = '';
+                    tempContainer.appendChild(cardEl);
+
+                    // Wait for DOM render
+                    await new Promise(resolve => setTimeout(resolve, 50));
+
+                    // Apply auto-sizing for Lackey cards before capture
+                    if (imageSize === 'lackey') {
+                        applyLackeyTextAutoSizing(cardEl);
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                    }
+
+                    const renderScale = CARD_WIDTH / baseWidth;
+                    const cardCanvas = await html2canvas(cardEl, {
+                        scale: renderScale,
+                        width: baseWidth,
+                        height: baseHeight,
+                        backgroundColor: '#ffffff',
+                        logging: false,
+                        useCORS: true,
+                        allowTaint: true
+                    });
+
+                    const row = Math.floor(i / 3);
+                    const col = i % 3;
+                    const x = MARGIN + (col * CARD_WIDTH);
+                    const y = MARGIN + (row * CARD_HEIGHT);
+                    ctx.drawImage(cardCanvas, x, y, CARD_WIDTH, CARD_HEIGHT);
+                } catch (error) {
+                    console.error(`Failed to render card "${card.title}":`, error);
+                }
+            }
+
+            // Download this page
+            const dataUrl = pageCanvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = `AEW_PrintSheets_${dateStamp}_Page-${page + 1}-of-${numPages}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            // Small delay between page downloads
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    } finally {
+        document.body.removeChild(tempContainer);
+    }
+
+    updateProgressUI(totalCards, totalCards,
+        `Print sheet export complete! ${numPages} page(s) downloaded.`, true);
+
+    // Auto-close modal after 3 seconds
+    setTimeout(() => {
+        const exportModal = document.getElementById('exportModal');
+        if (exportModal) exportModal.style.display = 'none';
         const progressBar = document.getElementById('exportProgressBar');
         if (progressBar) {
             progressBar.style.width = '0%';
