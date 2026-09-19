@@ -1,51 +1,48 @@
+// card-renderer-export.js
+
 import * as state from './config.js';
 
-// Special renderer for exported cards (includes Lackey 214x308 template + auto-fit hooks)
+// Special renderer for exported cards.
+// - LackeyCCG size uses the dedicated Lackey 214x308 template (special needs).
+// - All other sizes use the SAME layout as the deck image export (generatePlaytestCardHTML look).
 export function generateCardVisualHTMLForExport(card, options = {}) {
     const isLackeySize = options.size === 'lackey' || options.width === 214;
 
-    // Colors tuned to match your screenshots
-    const getCardColor = (type) => {
-        switch (type) {
-            case 'Action':      return '#9B59B6'; // purple
-            case 'Wrestler':    return '#3E3E3E'; // dark gray
-            case 'Manager':     return '#3E3E3E'; // persona vibe
-            case 'Response':    return '#C05050'; // red
-            case 'Submission':  return '#63A85C'; // green
-            case 'Grapple':     return '#D79A1E'; // orange
-            case 'Strike':      return '#4D82C6'; // blue
-            case 'Boon':        return '#18A7B5'; // teal
-            case 'Faction':     return '#28C2A1'; // mint/teal-green
-            case 'Injury':      return '#FF7900'; // orange
-            case 'Call Name':   return '#2E86C1'; // fallback
-            default:            return '#777777';
-        }
-    };
-
-    const formatTextPlainish = (text) => {
-        if (!text) return '';
-        let formatted = String(text).trim();
-
-        formatted = formatted
-            .replace(/\b(Enters|Ongoing|Trigger|Follow-Up|Finisher|Sudden|Permanent|Resilient|Relentless|Power Attack|Focus Attack|Cunning Attack|Combo Attack|Hidden|Set-up|Stealth Attack|High Risk|Sturdy|Aggressive|Risky|Illegal|Retaliate|Tie-Up|Ready|Recovery|Response|Reverse|Special|Cycling|Rope Break|Capitalize|Turned|Knockout|Pin|Submit|Passout)\b/gi, '<strong>$1</strong>')
-            .replace(/\b(Scout|Attempt|Tuck|Cycle|Market|Commit|Uncommit|Stun|Discard|Draw|Gain|Lose|Pay|Play|Purchase|Reveal|Shuffle|Search|Look|Choose|Create|Put)\b/gi, '<strong>$1</strong>');
-
-        // sentence breaks
-        formatted = formatted.replace(/\.\s+/g, '.<br>');
-
-        return formatted;
-    };
-
     // ---------------------------
-    // LACKEY 214x308 TEMPLATE
-    // Changes in this version:
-    // 1) Title is one line only (no wrap)
-    // 2) Cost + D/M block moved up directly under title (reduced dead space)
-    // 3) If card has Starting, show persona name (minus Wrestler/Manager) under Cost box,
-    //    aligned to the M row (and do NOT waste text-box space for the kit header)
-    // 4) Text wrapping: avoid mid-word breaks (wrap at spaces; only break long tokens if unavoidable)
+    // LACKEY 214x308 TEMPLATE (unchanged - special needs)
     // ---------------------------
     if (isLackeySize) {
+        const getCardColor = (type) => {
+            switch (type) {
+                case 'Action':      return '#9B59B6'; // purple
+                case 'Wrestler':    return '#3E3E3E'; // dark gray
+                case 'Manager':     return '#3E3E3E'; // persona vibe
+                case 'Response':    return '#C05050'; // red
+                case 'Submission':  return '#63A85C'; // green
+                case 'Grapple':     return '#D79A1E'; // orange
+                case 'Strike':      return '#4D82C6'; // blue
+                case 'Boon':        return '#18A7B5'; // teal
+                case 'Faction':     return '#28C2A1'; // mint/teal-green
+                case 'Injury':      return '#FF7900'; // orange
+                case 'Call Name':   return '#2E86C1'; // fallback
+                default:            return '#777777';
+            }
+        };
+
+        const formatTextPlainish = (text) => {
+            if (!text) return '';
+            let formatted = String(text).trim();
+
+            formatted = formatted
+                .replace(/\b(Enters|Ongoing|Trigger|Follow-Up|Finisher|Sudden|Permanent|Resilient|Relentless|Power Attack|Focus Attack|Cunning Attack|Combo Attack|Hidden|Set-up|Stealth Attack|High Risk|Sturdy|Aggressive|Risky|Illegal|Retaliate|Tie-Up|Ready|Recovery|Response|Reverse|Special|Cycling|Rope Break|Capitalize|Turned|Knockout|Pin|Submit|Passout)\b/gi, '<strong>$1</strong>')
+                .replace(/\b(Scout|Attempt|Tuck|Cycle|Market|Commit|Uncommit|Stun|Discard|Draw|Gain|Lose|Pay|Play|Purchase|Reveal|Shuffle|Search|Look|Choose|Create|Put)\b/gi, '<strong>$1</strong>');
+
+            // sentence breaks
+            formatted = formatted.replace(/\.\s+/g, '.<br>');
+
+            return formatted;
+        };
+
         const typeBarColor = getCardColor(card.card_type);
         const costDisplay = (card.cost !== null && card.cost !== undefined) ? card.cost : '';
         const damageDisplay = (card.damage !== null && card.damage !== undefined) ? card.damage : '0';
@@ -82,7 +79,6 @@ export function generateCardVisualHTMLForExport(card, options = {}) {
         const finalDamageDisplay = isManeuver && target ? `${damageDisplay} [T:${target}]` : damageDisplay;
 
         // Only prepend kit header into TEXT BOX when it's Signature For (not Starting)
-        // because Starting gets moved to the header area under Cost as requested.
         const isPersonaCard = ['Wrestler', 'Manager', 'Call Name', 'Faction'].includes(card.card_type);
         const showSignatureHeaderInText = signaturePersonaLabel && !isPersonaCard;
         if (showSignatureHeaderInText) {
@@ -277,238 +273,172 @@ export function generateCardVisualHTMLForExport(card, options = {}) {
     }
 
     // ---------------------------
-    // ORIGINAL (STANDARD) EXPORT TEMPLATE
+    // STANDARD EXPORT TEMPLATE
+    // Matches the deck image export (generatePlaytestCardHTML) layout.
     // ---------------------------
 
-    const titleFontSize = 20;
-    const costLabelFontSize = 14;
-    const costNumberFontSize = 36;
-    const momentumLabelFontSize = 14;
-    const momentumNumberFontSize = 36;
-    const damageNumberFontSize = 28;
-    const textFontSize = 14;
+    const CARD_FONT = 'Arial, Helvetica, sans-serif';
+    const CARD_TITLE_FONT = 'Arial Black, Arial, sans-serif';
 
-    const formatText = (text) => {
-        if (!text) return '';
+    const width = options.width || 750;
+    const height = options.height || 1050;
 
-        let formatted = text
-            .replace(/\b(Enters|Ongoing|Trigger|Follow-Up|Finisher|Sudden|Permanent|Resilient|Relentless|Power Attack|Focus Attack|Cunning Attack|Combo Attack|Hidden|Set-up|Stealth Attack|High Risk|Sturdy|Agressive|Risky|Illegal|Retaliate|Tie-Up|Ready|Recovery|Response|Reverse|Special|Cycling|Rope Break|Capitalize|Turned|Knockout|Pin|Submit|Passout)\b/gi, '<strong>$1</strong>')
-            .replace(/\b(Scout|Attempt|Tuck|Cycle|Market|Commit|Uncommit|Stun|Discard|Draw|Gain|Lose|Pay|Play|Purchase|Reveal|Shuffle|Search|Look|Choose|Create|Put)\b/gi, '<strong>$1</strong>');
-
-        formatted = formatted.replace(/\.\s+(\w)/g, '.<br>$1');
-
-        return formatted;
-    };
-
-    const getCardColorStandard = (type) => {
-        switch (type) {
-            case 'Action': return '#7D4AA6';
-            case 'Strike': return '#FF6B6B';
-            case 'Grapple': return '#4ECDC4';
-            case 'Submission': return '#A8E6CF';
-            case 'Response': return '#FFD3B6';
-            case 'Manager': return '#DDA0DD';
-            case 'Wrestler': return '#87CEEB';
-            case 'Call Name': return '#98FB98';
-            case 'Faction': return '#D2B48C';
-            case 'Boon': return '#E6E6FA';
-            case 'Injury': return '#A9A9A9';
-            default: return '#FFFFFF';
-        }
-    };
-
-    // Get target and kit info
-    let target = '';
-    if (card.text_box && card.text_box.traits) {
-        const targetTrait = card.text_box.traits.find(t => t && t.name && t.name.trim() === 'Target');
-        if (targetTrait && targetTrait.value) {
-            target = targetTrait.value;
-        }
-    }
-
-    let kitPersona = '';
-    if (card && card['Starting'] && card['Starting'].trim() !== '') {
-        const personaName = card['Starting'].trim();
-        kitPersona = personaName.replace(/\s*Wrestler$/, '');
-    }
-
-    // Add target to damage display
-    const isManeuver = ['Strike', 'Grapple', 'Submission'].includes(card.card_type);
-    const finalDamageDisplay = isManeuver && target ? `${card.damage ?? '0'} [T:${target}]` : (card.damage ?? '0');
-
-    // Add kit info to game text if applicable
+    const isPersona = ['Wrestler', 'Manager'].includes(card.card_type);
     const isPersonaCard = ['Wrestler', 'Manager', 'Call Name', 'Faction'].includes(card.card_type);
-    const showKitInfo = kitPersona && !isPersonaCard;
-    let gameText = card.text_box?.raw_text ? formatText(card.text_box.raw_text) : 'No text';
-    if (showKitInfo) {
-        gameText = `<div style="font-size: 12px; color: #666; margin-bottom: 8px; border-bottom: 1px dashed #ddd; padding-bottom: 5px;">${kitPersona}</div>${gameText}`;
+
+    const keywords = card.text_box?.keywords || [];
+    const traits = card.text_box?.traits || [];
+
+    // Scale factor relative to the 750x1050 base
+    const scale = width / 750;
+
+    const titleFontSize = 64 * scale;
+    const statFontSize = 50 * scale;
+    const artHeight = 200 * scale;
+    const typeLineFontSize = 52 * scale;
+    const textBoxFontSizeBase = 42 * scale;
+    const reminderFontSize = 38 * scale;
+    const borderRadius = 35 * scale;
+    const padding = 30 * scale;
+    const borderWidth = 15 * scale;
+    const innerPadding = 25 * scale;
+
+    let keywordsText = keywords.map(kw => {
+        const definition = state.keywordDatabase[kw.name.trim()] || 'Definition not found.';
+        return `<strong style="font-family: ${CARD_FONT};">${kw.name.trim()}:</strong> <span style="font-size: ${reminderFontSize}px; font-style: italic; font-family: ${CARD_FONT};">${definition}</span>`;
+    }).join('<br><br>');
+
+    let traitsText = traits.map(tr => `<strong style="font-family: ${CARD_FONT};">${tr.name.trim()}</strong>`).join(', ');
+    if (traitsText) {
+        traitsText = `<p style="margin-bottom: ${25 * scale}px; font-family: ${CARD_FONT};"><span style="font-size: ${reminderFontSize}px; font-style: italic;">${traitsText}</span></p>`;
     }
+
+    const reminderBlock = traitsText + keywordsText;
+
+    const targetTrait = traits.find(t => t.name.trim() === 'Target');
+    const targetValue = targetTrait ? targetTrait.value : null;
+
+    const typeColors = {
+        'Action': '#9c5a9c',
+        'Response': '#c84c4c',
+        'Submission': '#5aa05a',
+        'Strike': '#4c82c8',
+        'Grapple': '#e68a00',
+        'Wrestler': '#333333',
+        'Manager': '#666666'
+    };
+    const typeColor = typeColors[card.card_type] || '#6c757d';
+
+    // Kit persona header (for non-persona cards with a Starting value)
+    let kitPersona = '';
+    if (card['Starting'] && String(card['Starting']).trim() !== '') {
+        kitPersona = String(card['Starting']).trim()
+            .replace(/\s*(Wrestler|Manager|Call Name|Faction)\s*$/i, '')
+            .trim();
+    }
+    const showKitInfo = kitPersona && !isPersonaCard;
+
+    let rawText = card.text_box?.raw_text || '';
+    const abilityKeywords = ['Ongoing', 'Enters', 'Finisher', 'Tie-Up Action', 'Recovery Action', 'Tie-Up Enters', 'Ready Enters'];
+    const personaExceptions = ['Chris Jericho'];
+    const delimiter = '|||';
+    let tempText = rawText;
+    abilityKeywords.forEach(kw => {
+        const regex = new RegExp(`(^|\\s)(${kw})`, 'g');
+        tempText = tempText.replace(regex, `$1${delimiter}$2`);
+    });
+    let lines = tempText.split(delimiter).map(line => line.trim()).filter(line => line);
+    const finalLines = [];
+    if (lines.length > 0) {
+        finalLines.push(lines[0]);
+        for (let i = 1; i < lines.length; i++) {
+            const previousLine = finalLines[finalLines.length - 1];
+            const currentLine = lines[i];
+            const endsWithPersona = personaExceptions.some(persona => previousLine.endsWith(persona));
+            const isGainQuote = previousLine.includes("gains '");
+            if (endsWithPersona || isGainQuote) {
+                finalLines[finalLines.length - 1] += ` ${currentLine}`;
+            } else {
+                finalLines.push(currentLine);
+            }
+        }
+    }
+
+    // Format text with simple fonts
+    const formattedText = finalLines.map(line => {
+        abilityKeywords.forEach(kw => {
+            const regex = new RegExp(`\\b${kw}\\b`, 'g');
+            line = line.replace(regex, `<strong style="font-family: ${CARD_FONT};">${kw}</strong>`);
+        });
+        const cardNameRegex = /'([^']+)'/g;
+        line = line.replace(cardNameRegex, `<em style="font-family: ${CARD_FONT};">'$1'</em>`);
+        return `<p style="margin: 0 0 ${8 * scale}px 0; font-family: ${CARD_FONT};">${line}</p>`;
+    }).join('');
+
+    // Prepend kit persona header if applicable
+    const kitHeaderHTML = showKitInfo
+        ? `<div style="font-size: ${reminderFontSize}px; font-style: italic; color: #666; margin-bottom: ${10 * scale}px; border-bottom: ${2 * scale}px dashed #ddd; padding-bottom: ${6 * scale}px; font-family: ${CARD_FONT};">${kitPersona}</div>`
+        : '';
+
+    const fullText = kitHeaderHTML + formattedText + reminderBlock;
+    let textBoxFontSize = textBoxFontSizeBase;
+    if (fullText.length > 250) {
+        textBoxFontSize = 34 * scale;
+    } else if (fullText.length > 180) {
+        textBoxFontSize = 38 * scale;
+    }
+
+    // Simple title fitting
+    const title = card.title;
+    let fittedTitleFontSize = titleFontSize;
+    if (title.length > 25) fittedTitleFontSize = titleFontSize * 0.8;
+    if (title.length > 35) fittedTitleFontSize = titleFontSize * 0.7;
+    if (title.length > 45) fittedTitleFontSize = titleFontSize * 0.6;
+
+    const costBoxSize = 60 * scale;
+    const costPadding = 15 * scale;
+    const costHTML = !isPersona
+        ? `<div style="font-size: ${costBoxSize}px; font-weight: bold; font-family: ${CARD_TITLE_FONT}; border: ${3 * scale}px solid black; padding: ${costPadding}px ${35 * scale}px; border-radius: ${15 * scale}px; flex-shrink: 0;">${card.cost ?? '–'}</div>`
+        : `<div style="width: ${120 * scale}px; flex-shrink: 0;"></div>`;
+
+    const typeLineHTML = !isPersona
+        ? `<div style="padding: ${15 * scale}px; text-align: center; font-size: ${typeLineFontSize}px; font-weight: bold; font-family: ${CARD_TITLE_FONT}; border-radius: ${15 * scale}px; margin-bottom: ${15 * scale}px; color: white; background-color: ${typeColor};">${card.card_type}</div>`
+        : `<div style="text-align: center; font-size: ${typeLineFontSize}px; font-weight: bold; font-family: ${CARD_TITLE_FONT}; color: #6c757d; margin-bottom: ${15 * scale}px;">${card.card_type}</div>`;
 
     const html = `
-        <div class="card" style="
-            width: ${options.width || 400}px;
-            height: ${options.height || 600}px;
-            background: ${getCardColorStandard(card.card_type)};
-            border: 5px solid #000;
-            border-radius: 15px;
-            position: relative;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-            font-family: 'Arial Black', Arial, sans-serif;
-            overflow: hidden;
-        ">
-            <!-- Title Bar -->
-            <div style="
-                background: #2c3e50;
-                color: white;
-                padding: 10px;
-                text-align: center;
-                border-bottom: 3px solid #000;
-            ">
-                <div style="
-                    font-size: ${titleFontSize}px;
-                    font-weight: 900;
-                    line-height: 1.1;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
-                ">${card.title}</div>
-                <div style="
-                    font-size: 14px;
-                    font-weight: bold;
-                    opacity: 0.9;
-                    margin-top: 4px;
-                ">${card.card_type}</div>
-            </div>
-
-            <!-- Cost and Momentum -->
-            <div style="
-                position: absolute;
-                top: 80px;
-                left: 0;
-                right: 0;
-                display: flex;
-                justify-content: space-around;
-                align-items: center;
-                padding: 10px;
-                background: rgba(255, 255, 255, 0.95);
-                border: 3px solid #000;
-                margin: 0 20px;
-                border-radius: 12px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            ">
-                <!-- Cost -->
-                <div style="text-align: center;">
-                    <div style="
-                        font-size: ${costLabelFontSize}px;
-                        font-weight: 900;
-                        color: #2c3e50;
-                        margin-bottom: 4px;
-                        text-transform: uppercase;
-                        letter-spacing: 1px;
-                    ">COST</div>
-                    <div style="
-                        font-size: ${costNumberFontSize}px;
-                        font-weight: 900;
-                        color: #2c3e50;
-                        line-height: 0.8;
-                        text-shadow: 2px 2px 3px rgba(0,0,0,0.3);
-                    ">${card.cost !== null ? card.cost : 'N/A'}</div>
+        <div style="position: relative; background-color: white; border: ${borderWidth}px solid black; border-radius: ${borderRadius}px; box-sizing: border-box; width: ${width}px; height: ${height}px; padding: ${padding}px; display: flex; flex-direction: column; color: black; overflow: hidden; font-family: ${CARD_FONT};">
+            <!-- Header with stats, title, and cost -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: ${3 * scale}px solid black; padding-bottom: ${15 * scale}px; margin-bottom: ${15 * scale}px; gap: ${15 * scale}px;">
+                <!-- Left: Damage, Momentum, Target -->
+                <div style="font-size: ${statFontSize}px; font-weight: bold; font-family: ${CARD_TITLE_FONT}; line-height: 1.2; flex-shrink: 0; min-width: ${120 * scale}px;">
+                    ${!isPersona ? `<div>D: ${card.damage ?? '–'}</div>` : ''}
+                    <div>M: ${card.momentum ?? '–'}</div>
+                    ${targetValue ? `<div>T: ${targetValue}</div>` : ''}
                 </div>
 
-                <!-- Damage (if applicable) -->
-                ${card.damage !== null ? `
-                    <div style="text-align: center;">
-                        <div style="
-                            font-size: 14px;
-                            font-weight: 900;
-                            color: #2c3e50;
-                            margin-bottom: 4px;
-                            text-transform: uppercase;
-                            letter-spacing: 1px;
-                        ">DAMAGE</div>
-                        <div style="
-                            font-size: ${damageNumberFontSize}px;
-                            font-weight: 900;
-                            color: #e74c3c;
-                            line-height: 0.8;
-                            text-shadow: 2px 2px 3px rgba(0,0,0,0.3);
-                        ">${finalDamageDisplay}</div>
-                    </div>
-                ` : ''}
-
-                <!-- Momentum -->
-                <div style="text-align: center;">
-                    <div style="
-                        font-size: ${momentumLabelFontSize}px;
-                        font-weight: 900;
-                        color: #2c3e50;
-                        margin-bottom: 4px;
-                        text-transform: uppercase;
-                        letter-spacing: 1px;
-                    ">MOMENTUM</div>
-                    <div style="
-                        font-size: ${momentumNumberFontSize}px;
-                        font-weight: 900;
-                        color: #27ae60;
-                        line-height: 0.8;
-                        text-shadow: 2px 2px 3px rgba(0,0,0,0.3);
-                    ">${card.momentum !== null ? card.momentum : '0'}</div>
+                <!-- Center: Title -->
+                <div style="flex-grow: 1; text-align: center; display: flex; align-items: center; justify-content: center; min-height: ${statFontSize * 1.5}px;">
+                    <div style="font-size: ${fittedTitleFontSize}px; font-weight: 900; font-family: ${CARD_TITLE_FONT}; line-height: 1.1; max-width: 100%;">${title}</div>
                 </div>
+
+                <!-- Right: Cost -->
+                ${costHTML}
             </div>
 
-            <!-- Game Text Box -->
-            <div class="aew-export-textbox" style="
-                position: absolute;
-                top: 180px;
-                bottom: 50px;
-                left: 20px;
-                right: 20px;
-                background: white;
-                border: 3px solid #000;
-                border-radius: 10px;
-                padding: 15px;
-                overflow-y: auto;
-                font-size: ${textFontSize}px;
-                line-height: 1.5;
-                font-weight: bold;
-            ">
-                ${gameText}
+            <!-- Art Area -->
+            <div style="height: ${artHeight}px; border: ${3 * scale}px solid #ccc; border-radius: ${20 * scale}px; margin-bottom: ${15 * scale}px; display: flex; align-items: center; justify-content: center; font-style: italic; font-size: ${40 * scale}px; color: #888; background-color: #f0f0f0; font-family: ${CARD_FONT};">
+                Art Area
             </div>
 
-            <!-- Set Indicator -->
-            <div style="
-                position: absolute;
-                bottom: 15px;
-                left: 15px;
-                font-size: 12px;
-                color: #2c3e50;
-                font-weight: 900;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-            ">
-                ${card.set || 'AEW'}
-            </div>
+            <!-- Type Line -->
+            ${typeLineHTML}
 
-            <!-- Kit Card Indicator -->
-            ${state.isKitCard && state.isKitCard(card) ? `
-                <div style="
-                    position: absolute;
-                    top: 8px;
-                    right: 8px;
-                    background: #e74c3c;
-                    color: white;
-                    padding: 4px 8px;
-                    border-radius: 6px;
-                    font-size: 10px;
-                    font-weight: 900;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                    border: 2px solid #000;
-                    box-shadow: 1px 1px 3px rgba(0,0,0,0.3);
-                ">
-                    KIT
-                </div>
-            ` : ''}
+            <!-- Text Box -->
+            <div style="background-color: #f8f9fa; border: ${2 * scale}px solid #ccc; border-radius: ${20 * scale}px; padding: ${innerPadding}px; font-size: ${textBoxFontSize}px; line-height: 1.3; text-align: center; white-space: pre-wrap; flex-grow: 1; overflow-y: auto; font-family: ${CARD_FONT};">
+                ${kitHeaderHTML}
+                ${formattedText}
+                ${reminderBlock ? `<hr style="border-top: ${2 * scale}px solid #ccc; margin: ${25 * scale}px 0;"><div style="margin-bottom: 0; font-family: ${CARD_FONT};">${reminderBlock}</div>` : ''}
+            </div>
         </div>
     `;
 
