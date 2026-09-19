@@ -78,10 +78,15 @@ export function getFilteredAndSortedCardPool() {
     const query = searchInput.value.toLowerCase();
     
     let cards = state.cardDatabase.filter(card => {
-        if (!card || !card.title) return false; 
-        if (card.card_type === 'Wrestler' || card.card_type === 'Manager' || state.isKitCard(card)) return false;
+        if (!card || !card.title) return false;
+
+        // Persona/Kit visibility checkbox
+        if (!state.showPersonaCards && state.isPersonaOrKitCard(card)) return false;
+
+        // Cost filters (persona cards have null cost and are unaffected)
         if (!state.showZeroCost && card.cost === 0) return false;
-        if (!state.showNonZeroCost && card.cost > 0) return false;
+        if (!state.showNonZeroCost && card.cost !== null && card.cost !== undefined && card.cost > 0) return false;
+
         const rawText = card.text_box?.raw_text || '';
         return query === '' || card.title.toLowerCase().includes(query) || rawText.toLowerCase().includes(query);
     });

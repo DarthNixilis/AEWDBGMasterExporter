@@ -9,22 +9,20 @@ export function generatePlainTextDeck() {
     if (state.selectedManager) activePersonaTitles.push(state.selectedManager.title);
     if (state.selectedCallName) activePersonaTitles.push(state.selectedCallName.title);
     if (state.selectedFaction) activePersonaTitles.push(state.selectedFaction.title);
+    if (state.selectedChampionship) activePersonaTitles.push(state.selectedChampionship.title);
     
-    // Get kit cards for ALL personas (not just wrestler/manager)
-    // Kit cards are non-persona cards that have a persona in their Starting field
     const kitCards = state.cardDatabase.filter(card => 
         state.isKitCard(card) && 
-        !['Wrestler', 'Manager', 'Call Name', 'Faction'].includes(card.card_type) &&
+        !['Wrestler', 'Manager', 'Call Name', 'Faction', 'Championship'].includes(card.card_type) &&
         activePersonaTitles.includes(card['Starting'].trim())
     ).sort((a, b) => a.title.localeCompare(b.title));
     
-    // Build the basic deck export
     let text = `Wrestler: ${state.selectedWrestler ? state.getKitPersona(state.selectedWrestler) : 'None'}\n`;
     text += `Manager: ${state.selectedManager ? state.getKitPersona(state.selectedManager) : 'None'}\n`;
     text += `Call Name: ${state.selectedCallName ? state.selectedCallName.title : 'None'}\n`;
     text += `Faction: ${state.selectedFaction ? state.selectedFaction.title : 'None'}\n`;
+    text += `Championship: ${state.selectedChampionship ? state.selectedChampionship.title : 'None'}\n`;
     
-    // List all kit cards with their persona
     kitCards.forEach((card, index) => { 
         const personaName = state.getKitPersona(card) || card['Starting'] || 'Unknown';
         text += `Kit${index + 1}: ${card.title} (${personaName})\n`; 
@@ -36,7 +34,7 @@ export function generatePlainTextDeck() {
         let cardLine = cardTitle;
         if (card) {
             const kitPersona = state.getKitPersona(card);
-            if (kitPersona && !['Wrestler', 'Manager', 'Call Name', 'Faction'].includes(card.card_type)) {
+            if (kitPersona && !['Wrestler', 'Manager', 'Call Name', 'Faction', 'Championship'].includes(card.card_type)) {
                 cardLine += ` [${kitPersona}]`;
             }
         }
@@ -51,7 +49,7 @@ export function generatePlainTextDeck() {
         let cardLine = cardTitle;
         if (card) {
             const kitPersona = state.getKitPersona(card);
-            if (kitPersona && !['Wrestler', 'Manager', 'Call Name', 'Faction'].includes(card.card_type)) {
+            if (kitPersona && !['Wrestler', 'Manager', 'Call Name', 'Faction', 'Championship'].includes(card.card_type)) {
                 cardLine += ` [${kitPersona}]`;
             }
         }
@@ -60,20 +58,16 @@ export function generatePlainTextDeck() {
     }, {});
     Object.entries(purchaseCounts).sort((a, b) => a[0].localeCompare(b[0])).forEach(([cardLine, count]) => { text += `${count}x ${cardLine}\n`; });
     
-    // Add analysis section
     text += generateDeckAnalysis();
     
     return text;
 }
 
-// NEW: Generate deck analysis
 function generateDeckAnalysis() {
     let analysis = '\n\n=== DECK ANALYSIS ===\n\n';
     
-    // Combine all cards from both decks
     const allCards = [...state.startingDeck, ...state.purchaseDeck].map(title => state.cardTitleCache[title]);
     
-    // 1. COST ANALYSIS
     analysis += 'COST DISTRIBUTION:\n';
     const costDistribution = {};
     const momentumDistribution = {};
@@ -82,17 +76,14 @@ function generateDeckAnalysis() {
     allCards.forEach(card => {
         if (!card) return;
         
-        // Cost analysis
         const cost = card.cost !== null && card.cost !== undefined ? card.cost : 'N/A';
         costDistribution[cost] = (costDistribution[cost] || 0) + 1;
         
-        // Momentum analysis (for non-persona cards)
         if (card.momentum !== null && card.momentum !== undefined && card.card_type !== 'Wrestler' && card.card_type !== 'Manager') {
             const momentum = card.momentum;
             momentumDistribution[momentum] = (momentumDistribution[momentum] || 0) + 1;
         }
         
-        // Damage analysis (for maneuvers)
         if (card.damage !== null && card.damage !== undefined && 
             ['Strike', 'Grapple', 'Submission'].includes(card.card_type)) {
             const damage = card.damage;
@@ -100,7 +91,6 @@ function generateDeckAnalysis() {
         }
     });
     
-    // Sort and display cost distribution
     const sortedCosts = Object.entries(costDistribution).sort((a, b) => {
         if (a[0] === 'N/A') return 1;
         if (b[0] === 'N/A') return -1;
@@ -112,7 +102,6 @@ function generateDeckAnalysis() {
         analysis += `  Cost ${cost}: ${count} cards (${percentage}%)\n`;
     });
     
-    // 2. CARD TYPE ANALYSIS
     analysis += '\nCARD TYPE DISTRIBUTION:\n';
     const typeDistribution = {};
     
@@ -122,7 +111,6 @@ function generateDeckAnalysis() {
         typeDistribution[type] = (typeDistribution[type] || 0) + 1;
     });
     
-    // Sort types by count
     Object.entries(typeDistribution)
         .sort((a, b) => b[1] - a[1])
         .forEach(([type, count]) => {
@@ -130,7 +118,6 @@ function generateDeckAnalysis() {
             analysis += `  ${type}: ${count} cards (${percentage}%)\n`;
         });
     
-    // 3. TARGET ANALYSIS (NEW)
     analysis += '\nTARGET DISTRIBUTION (maneuvers only):\n';
     const targetDistribution = {};
     
@@ -154,7 +141,6 @@ function generateDeckAnalysis() {
         analysis += '  No target information available\n';
     }
     
-    // 4. KIT CARD ANALYSIS (NEW)
     analysis += '\nKIT CARD DISTRIBUTION:\n';
     const kitCards = allCards.filter(card => card && state.isKitCard(card));
     if (kitCards.length > 0) {
@@ -173,7 +159,6 @@ function generateDeckAnalysis() {
         analysis += '  No kit cards in deck\n';
     }
     
-    // 5. MOMENTUM ANALYSIS
     analysis += '\nMOMENTUM DISTRIBUTION (non-persona cards):\n';
     const sortedMomentum = Object.entries(momentumDistribution)
         .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
@@ -183,7 +168,6 @@ function generateDeckAnalysis() {
             analysis += `  Momentum ${momentum}: ${count} cards\n`;
         });
         
-        // Calculate average momentum
         const totalMomentum = sortedMomentum.reduce((sum, [momentum, count]) => 
             sum + (parseInt(momentum) * count), 0);
         const totalCardsWithMomentum = sortedMomentum.reduce((sum, [, count]) => sum + count, 0);
@@ -193,7 +177,6 @@ function generateDeckAnalysis() {
         analysis += '  No cards with momentum values\n';
     }
     
-    // 6. DAMAGE ANALYSIS
     analysis += '\nDAMAGE DISTRIBUTION (maneuvers only):\n';
     const sortedDamage = Object.entries(damageDistribution)
         .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
@@ -203,14 +186,12 @@ function generateDeckAnalysis() {
             analysis += `  Damage ${damage}: ${count} cards\n`;
         });
         
-        // Calculate average damage
         const totalDamage = sortedDamage.reduce((sum, [damage, count]) => 
             sum + (parseInt(damage) * count), 0);
         const totalCardsWithDamage = sortedDamage.reduce((sum, [, count]) => sum + count, 0);
         const avgDamage = totalCardsWithDamage > 0 ? (totalDamage / totalCardsWithDamage).toFixed(2) : 0;
         analysis += `  Average Damage: ${avgDamage}\n`;
         
-        // Find damage ranges
         const damageValues = sortedDamage.map(([damage]) => parseInt(damage));
         const minDamage = Math.min(...damageValues);
         const maxDamage = Math.max(...damageValues);
@@ -219,7 +200,6 @@ function generateDeckAnalysis() {
         analysis += '  No maneuver cards with damage values\n';
     }
     
-    // 7. KEYWORD ANALYSIS
     analysis += '\nKEYWORD DISTRIBUTION:\n';
     const keywordDistribution = {};
     
@@ -245,7 +225,6 @@ function generateDeckAnalysis() {
         analysis += '  No keywords found\n';
     }
     
-    // 8. TRAIT ANALYSIS
     analysis += '\nTRAIT DISTRIBUTION:\n';
     const traitDistribution = {};
     
@@ -271,17 +250,14 @@ function generateDeckAnalysis() {
         analysis += '  No traits found\n';
     }
     
-    // 9. DECK STATISTICS
     analysis += '\nDECK STATISTICS:\n';
     analysis += `  Total Cards: ${allCards.length}\n`;
     analysis += `  Starting Deck: ${state.startingDeck.length}/24 cards\n`;
     analysis += `  Purchase Deck: ${state.purchaseDeck.length} cards\n`;
     
-    // Count unique cards
     const uniqueCards = new Set(allCards.map(card => card ? card.title : '').filter(Boolean));
     analysis += `  Unique Cards: ${uniqueCards.size}\n`;
     
-    // Count duplicates
     const cardCounts = {};
     allCards.forEach(card => {
         if (!card) return;
@@ -291,7 +267,6 @@ function generateDeckAnalysis() {
     const duplicates = Object.entries(cardCounts).filter(([, count]) => count > 1);
     analysis += `  Cards with duplicates: ${duplicates.length}\n`;
     
-    // Show most duplicated cards
     if (duplicates.length > 0) {
         const topDuplicates = duplicates
             .sort((a, b) => b[1] - a[1])
@@ -303,14 +278,12 @@ function generateDeckAnalysis() {
         });
     }
     
-    // 10. PERSONA SYNERGY ANALYSIS
     analysis += '\nPERSONA SYNERGY:\n';
-    if (state.selectedWrestler || state.selectedManager) {
+    if (state.selectedWrestler || state.selectedManager || state.selectedChampionship) {
         analysis += '  Active Persona:\n';
         if (state.selectedWrestler) {
             analysis += `    Wrestler: ${state.getKitPersona(state.selectedWrestler)}\n`;
             
-            // Count wrestler-specific cards
             const wrestlerCards = allCards.filter(card => 
                 card && card['Starting'] === state.selectedWrestler.title);
             analysis += `    Wrestler-specific cards in deck: ${wrestlerCards.length}\n`;
@@ -318,16 +291,17 @@ function generateDeckAnalysis() {
         if (state.selectedManager) {
             analysis += `    Manager: ${state.selectedManager.title}\n`;
             
-            // Count manager-specific cards
             const managerCards = allCards.filter(card => 
                 card && card['Starting'] === state.selectedManager.title);
             analysis += `    Manager-specific cards in deck: ${managerCards.length}\n`;
+        }
+        if (state.selectedChampionship) {
+            analysis += `    Championship: ${state.selectedChampionship.title}\n`;
         }
     } else {
         analysis += '  No persona selected\n';
     }
     
-    // 11. MANEUVER TYPE BREAKDOWN
     analysis += '\nMANEUVER TYPE BREAKDOWN:\n';
     const maneuverTypes = {
         'Strike': 0,
@@ -351,7 +325,6 @@ function generateDeckAnalysis() {
         }
     });
     
-    // Calculate maneuver ratio
     const totalManeuvers = maneuverTypes.Strike + maneuverTypes.Grapple + maneuverTypes.Submission;
     const totalNonManeuvers = allCards.length - totalManeuvers;
     const maneuverRatio = totalManeuvers > 0 ? (totalNonManeuvers / totalManeuvers).toFixed(2) : 'N/A';
@@ -360,16 +333,15 @@ function generateDeckAnalysis() {
     return analysis;
 }
 
-// NEW: Export as LackeyCCG format
 export function generateLackeyCCGDeck() {
     const activePersonaTitles = [];
     if (state.selectedWrestler) activePersonaTitles.push(state.selectedWrestler.title);
     if (state.selectedManager) activePersonaTitles.push(state.selectedManager.title);
+    if (state.selectedChampionship) activePersonaTitles.push(state.selectedChampionship.title);
     const kitCards = state.cardDatabase.filter(card => state.isKitCard(card) && activePersonaTitles.includes(card['Starting']));
     
     let text = '';
     
-    // Group cards by count
     const startingCounts = state.startingDeck.reduce((acc, cardTitle) => { 
         acc[cardTitle] = (acc[cardTitle] || 0) + 1; 
         return acc; 
@@ -380,18 +352,19 @@ export function generateLackeyCCGDeck() {
         return acc; 
     }, {});
     
-    // Add persona cards to starting counts
     if (state.selectedWrestler) {
         startingCounts[state.selectedWrestler.title] = (startingCounts[state.selectedWrestler.title] || 0) + 1;
     }
     if (state.selectedManager) {
         startingCounts[state.selectedManager.title] = (startingCounts[state.selectedManager.title] || 0) + 1;
     }
+    if (state.selectedChampionship) {
+        startingCounts[state.selectedChampionship.title] = (startingCounts[state.selectedChampionship.title] || 0) + 1;
+    }
     kitCards.forEach(card => {
         startingCounts[card.title] = (startingCounts[card.title] || 0) + 1;
     });
     
-    // Convert to arrays and sort
     const allCards = [];
     Object.entries(startingCounts).forEach(([cardTitle, count]) => {
         allCards.push({ title: cardTitle, count, type: 'starting' });
@@ -400,14 +373,11 @@ export function generateLackeyCCGDeck() {
         allCards.push({ title: cardTitle, count, type: 'purchase' });
     });
     
-    // Sort by count descending, then by title
     allCards.sort((a, b) => {
         if (a.count !== b.count) return b.count - a.count;
         return a.title.localeCompare(b.title);
     });
     
-    // Build the LackeyCCG format
-    // First, add all non-persona starting cards (except kit cards which are already included)
     const nonPersonaStarting = allCards.filter(card => 
         card.type === 'starting' && 
         !state.isSignatureFor(state.cardTitleCache[card.title])
@@ -415,33 +385,30 @@ export function generateLackeyCCGDeck() {
     
     const nonPersonaPurchase = allCards.filter(card => card.type === 'purchase');
     
-    // Add starting deck
     nonPersonaStarting.forEach(card => {
         text += `${card.count}\t${card.title}\n`;
     });
     
-    // Add purchase deck marker
     text += `Purchase_Deck:\n`;
     
-    // Add purchase deck
     nonPersonaPurchase.forEach(card => {
         text += `${card.count}\t${card.title}\n`;
     });
     
-    // Add persona marker and persona cards
     text += `Starting:\n`;
     
-    // Add wrestler
     if (state.selectedWrestler) {
         text += `1\t${state.selectedWrestler.title}\n`;
     }
     
-    // Add manager
     if (state.selectedManager) {
         text += `1\t${state.selectedManager.title}\n`;
     }
     
-    // Add kit cards
+    if (state.selectedChampionship) {
+        text += `1\t${state.selectedChampionship.title}\n`;
+    }
+    
     kitCards.forEach(card => {
         text += `1\t${card.title}\n`;
     });
@@ -459,6 +426,10 @@ export async function exportDeckAsImage() {
     if (state.selectedManager) {
         uniquePersonaAndKit.push(state.selectedManager);
         activePersonaTitles.push(state.selectedManager.title);
+    }
+    if (state.selectedChampionship) {
+        uniquePersonaAndKit.push(state.selectedChampionship);
+        activePersonaTitles.push(state.selectedChampionship.title);
     }
     const kitCards = state.cardDatabase.filter(card => state.isKitCard(card) && activePersonaTitles.includes(card['Starting']));
     uniquePersonaAndKit.push(...kitCards);

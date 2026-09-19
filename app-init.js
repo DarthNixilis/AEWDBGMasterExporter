@@ -2,7 +2,7 @@
 import * as state from './config.js';
 import * as ui from './ui.js';
 import * as filters from './filters.js';
-import { initializeAllEventListeners } from './listeners.js'; // Corrected path
+import { initializeAllEventListeners } from './listeners.js';
 
 export function initializeApp() {
     populatePersonaSelectors();
@@ -21,18 +21,21 @@ function populatePersonaSelectors() {
     const managerSelect = document.getElementById('managerSelect');
     const callNameSelect = document.getElementById('callNameSelect');
     const factionSelect = document.getElementById('factionSelect');
+    const championshipSelect = document.getElementById('championshipSelect');
     
     // Clear and add default options
     wrestlerSelect.length = 1;
     managerSelect.length = 1;
     if (callNameSelect) callNameSelect.length = 1;
     if (factionSelect) factionSelect.length = 1;
+    if (championshipSelect) championshipSelect.length = 1;
     
     // Get personas by type
     const wrestlers = state.cardDatabase.filter(c => c && c.card_type === 'Wrestler').sort((a, b) => a.title.localeCompare(b.title));
     const managers = state.cardDatabase.filter(c => c && c.card_type === 'Manager').sort((a, b) => a.title.localeCompare(b.title));
     const callNames = state.cardDatabase.filter(c => c && c.card_type === 'Call Name').sort((a, b) => a.title.localeCompare(b.title));
     const factions = state.cardDatabase.filter(c => c && c.card_type === 'Faction').sort((a, b) => a.title.localeCompare(b.title));
+    const championships = state.cardDatabase.filter(c => c && c.card_type === 'Championship').sort((a, b) => a.title.localeCompare(b.title));
     
     // Populate dropdowns
     wrestlers.forEach(w => wrestlerSelect.add(new Option(w.title, w.title)));
@@ -44,6 +47,10 @@ function populatePersonaSelectors() {
     
     if (factionSelect) {
         factions.forEach(f => factionSelect.add(new Option(f.title, f.title)));
+    }
+    
+    if (championshipSelect) {
+        championships.forEach(ch => championshipSelect.add(new Option(ch.title, ch.title)));
     }
 }
 
@@ -80,6 +87,14 @@ function loadStateFromCache() {
                 if (factionSelect) {
                     factionSelect.value = parsed.faction;
                     state.setSelectedFaction(state.cardTitleCache[parsed.faction] || null);
+                }
+            }
+
+            if (parsed.championship) {
+                const championshipSelect = document.getElementById('championshipSelect');
+                if (championshipSelect) {
+                    championshipSelect.value = parsed.championship;
+                    state.setSelectedChampionship(state.cardTitleCache[parsed.championship] || null);
                 }
             }
         } catch (e) {

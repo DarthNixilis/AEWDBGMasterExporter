@@ -54,7 +54,7 @@ export function renderCardPool(cards) {
             const kitPersona = state.getKitPersona(card);
             
             // Only show kit info for non-persona cards that go in decks
-            const isPersonaCard = ['Wrestler', 'Manager', 'Call Name', 'Faction'].includes(card.card_type);
+            const isPersonaCard = ['Wrestler', 'Manager', 'Call Name', 'Faction', 'Championship'].includes(card.card_type);
             const showKitInfo = kitPersona && !isPersonaCard;
             
             if (state.currentViewMode === 'list') {
@@ -90,14 +90,11 @@ export function renderCardPool(cards) {
                     cardElement.appendChild(kitSpan);
                 }
                 
-                if (card.cost === 0) {
-                    buttonsDiv.innerHTML = `
-                        <button data-title="${card.title}" data-deck-target="starting">Starting</button>
-                        <button class="btn-purchase" data-title="${card.title}" data-deck-target="purchase">Purchase</button>
-                    `;
-                } else {
-                    buttonsDiv.innerHTML = `<button class="btn-purchase" data-title="${card.title}" data-deck-target="purchase">Purchase</button>`;
-                }
+                // Always show both Starting and Purchase buttons (no restrictions)
+                buttonsDiv.innerHTML = `
+                    <button data-title="${card.title}" data-deck-target="starting">Starting</button>
+                    <button class="btn-purchase" data-title="${card.title}" data-deck-target="purchase">Purchase</button>
+                `;
                 cardElement.appendChild(buttonsDiv);
             } else {
                 // Grid view
@@ -132,14 +129,10 @@ export function renderCardPool(cards) {
                 buttonsDiv.className = 'card-buttons';
                 buttonsDiv.style.marginTop = '8px';
                 
-                if (card.cost === 0) {
-                    buttonsDiv.innerHTML = `
-                        <button data-title="${card.title}" data-deck-target="starting" style="margin-bottom: 4px;">Starting</button>
-                        <button class="btn-purchase" data-title="${card.title}" data-deck-target="purchase">Purchase</button>
-                    `;
-                } else {
-                    buttonsDiv.innerHTML = `<button class="btn-purchase" data-title="${card.title}" data-deck-target="purchase">Purchase</button>`;
-                }
+                buttonsDiv.innerHTML = `
+                    <button data-title="${card.title}" data-deck-target="starting" style="margin-bottom: 4px;">Starting</button>
+                    <button class="btn-purchase" data-title="${card.title}" data-deck-target="purchase">Purchase</button>
+                `;
                 cardElement.appendChild(buttonsDiv);
             }
             
@@ -153,7 +146,7 @@ export function renderCardPool(cards) {
 
 export function renderPersonaDisplay() {
     try {
-        if (!state.selectedWrestler && !state.selectedManager && !state.selectedCallName && !state.selectedFaction) { 
+        if (!state.selectedWrestler && !state.selectedManager && !state.selectedCallName && !state.selectedFaction && !state.selectedChampionship) { 
             personaDisplay.style.display = 'none'; 
             return; 
         }
@@ -167,6 +160,7 @@ export function renderPersonaDisplay() {
         if (state.selectedManager) activePersona.push(state.selectedManager);
         if (state.selectedCallName) activePersona.push(state.selectedCallName);
         if (state.selectedFaction) activePersona.push(state.selectedFaction);
+        if (state.selectedChampionship) activePersona.push(state.selectedChampionship);
         
         activePersona.forEach(p => cardsToShow.add(p));
         const activePersonaTitles = activePersona.map(p => p.title);
@@ -179,7 +173,7 @@ export function renderPersonaDisplay() {
         });
         kitCards.forEach(card => cardsToShow.add(card));
         const sortedCards = Array.from(cardsToShow).sort((a, b) => {
-            const typeOrder = ['Wrestler', 'Manager', 'Call Name', 'Faction', 'Action', 'Response', 'Strike', 'Grapple', 'Submission'];
+            const typeOrder = ['Wrestler', 'Manager', 'Call Name', 'Faction', 'Championship', 'Action', 'Response', 'Strike', 'Grapple', 'Submission'];
             const aIndex = typeOrder.indexOf(a.card_type);
             const bIndex = typeOrder.indexOf(b.card_type);
             
@@ -214,7 +208,7 @@ export function showCardModal(cardTitle) {
         // Get target and kit info for the modal
         const target = state.getCardTarget(card);
         const kitPersona = state.getKitPersona(card);
-        const isPersonaCard = ['Wrestler', 'Manager', 'Call Name', 'Faction'].includes(card.card_type);
+        const isPersonaCard = ['Wrestler', 'Manager', 'Call Name', 'Faction', 'Championship'].includes(card.card_type);
         const showKitInfo = kitPersona && !isPersonaCard;
         
         // Generate custom placeholder with kit info
@@ -285,10 +279,14 @@ function renderDeckList(element, deck) {
             
             // Get kit info for deck list
             const kitPersona = state.getKitPersona(card);
-            const isPersonaCard = ['Wrestler', 'Manager', 'Call Name', 'Faction'].includes(card.card_type);
+            const isPersonaCard = ['Wrestler', 'Manager', 'Call Name', 'Faction', 'Championship'].includes(card.card_type);
             const showKitInfo = kitPersona && !isPersonaCard;
             
-            let cardHTML = `<span data-title="${card.title}">${count}x ${card.title}</span>`;
+            // Red highlight if over limit: 3+ in starting OR 4+ across both decks
+            const overLimit = state.isCardOverLimit(cardTitle);
+            const overLimitStyle = overLimit ? 'color: red; font-weight: bold;' : '';
+            
+            let cardHTML = `<span data-title="${card.title}" style="${overLimitStyle}">${count}x ${card.title}</span>`;
             
             if (showKitInfo) {
                 cardHTML += `<span class="kit-persona" style="font-size: 10px; color: #888; display: block; margin-top: 2px;">${kitPersona}</span>`;
@@ -307,12 +305,20 @@ function renderDeckList(element, deck) {
 
 function updateDeckCounts() {
     try {
-        startingDeckCount.textContent = state.startingDeck ? state.startingDeck.length : 0;
-        purchaseDeckCount.textContent = state.purchaseDeck ? state.purchaseDeck.length : 0;
-        startingDeckCount.parentElement.style.color = state.startingDeck && state.startingDeck.length === 24 ? 'green' : 'red';
-        startingDeckHeader.style.color = state.startingDeck && state.startingDeck.length === 24 ? 'green' : 'inherit';
-        purchaseDeckCount.parentElement.style.color = state.purchaseDeck && state.purchaseDeck.length >= 36 ? 'green' : 'red';
-        purchaseDeckHeader.style.color = state.purchaseDeck && state.purchaseDeck.length >= 36 ? 'green' : 'inherit';
+        const startCount = state.startingDeck ? state.startingDeck.length : 0;
+        const purchaseCount = state.purchaseDeck ? state.purchaseDeck.length : 0;
+
+        startingDeckCount.textContent = startCount;
+        purchaseDeckCount.textContent = purchaseCount;
+
+        // Red while under minimum. No maximum, so at-or-above = green.
+        const startOk = startCount >= 24;
+        const purchaseOk = purchaseCount >= 36;
+
+        startingDeckCount.parentElement.style.color = startOk ? 'green' : 'red';
+        startingDeckHeader.style.color = startOk ? 'green' : 'red';
+        purchaseDeckCount.parentElement.style.color = purchaseOk ? 'green' : 'red';
+        purchaseDeckHeader.style.color = purchaseOk ? 'green' : 'red';
     } catch (error) {
         console.error("Error updating deck counts:", error);
     }

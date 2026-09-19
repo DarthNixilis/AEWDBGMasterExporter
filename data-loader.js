@@ -36,11 +36,6 @@ function parseCardTSV(tsvData, set) {
         card.momentum = card['Momentum'] === 'N/a' || card['Momentum'] === 'N/A' || card['Momentum'] === '' ? null : card['Momentum'];
         card.set = set;
         
-        // Ensure card_type is properly set for Call Name and Faction
-        if (card.card_type === 'Call Name' || card.card_type === 'Faction') {
-            // These are valid card types for the dropdown
-        }
-        
         // Text box parsing
         card.text_box = { raw_text: card['Game Text'] || '' };
         
@@ -63,9 +58,13 @@ function parseCardTSV(tsvData, set) {
         }
         
         // Kit card detection
-        if (card['Starting'] && card['Starting'].trim() !== '') {
+        // Core.txt uses "Starting"; Advanced.txt uses "Wrestler Logo". Support both.
+        const startingValue = card['Starting'] || card['Wrestler Logo'] || '';
+        if (String(startingValue).trim() !== '') {
+            const cleanStarting = String(startingValue).trim();
+            card['Starting'] = cleanStarting;
             card['Wrestler Kit'] = 'TRUE';
-            card['Signature For'] = card['Starting'].trim();
+            card['Signature For'] = cleanStarting;
         }
         
         return card;

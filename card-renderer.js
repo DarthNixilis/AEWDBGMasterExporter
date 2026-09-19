@@ -1,4 +1,5 @@
 // card-renderer.js
+// card-renderer.js
 import * as state from './config.js';
 import { toPascalCase } from './config.js';
 
@@ -19,7 +20,7 @@ export function generateCardVisualHTML(card) {
         const kitPersona = state.getKitPersona(card);
         
         // Only show kit info for non-persona cards that go in decks
-        const isPersonaCard = ['Wrestler', 'Manager', 'Call Name', 'Faction'].includes(card.card_type);
+        const isPersonaCard = ['Wrestler', 'Manager', 'Call Name', 'Faction', 'Championship'].includes(card.card_type);
         const showKitInfo = kitPersona && !isPersonaCard;
         
         const placeholderHTML = `
@@ -57,7 +58,7 @@ export function generatePlaytestCardHTML(card, tempContainer, width = 750, heigh
     const CARD_FONT = 'Arial, Helvetica, sans-serif';
     const CARD_TITLE_FONT = 'Arial Black, Arial, sans-serif';
     
-    const isPersona = card.card_type === 'Wrestler' || card.card_type === 'Manager';
+    const isPersona = card.card_type === 'Wrestler' || card.card_type === 'Manager' || card.card_type === 'Call Name' || card.card_type === 'Faction' || card.card_type === 'Championship';
     const keywords = card.text_box?.keywords || [];
     const traits = card.text_box?.traits || [];
     
@@ -96,7 +97,8 @@ export function generatePlaytestCardHTML(card, tempContainer, width = 750, heigh
         'Strike': '#4c82c8', 
         'Grapple': '#e68a00',
         'Wrestler': '#333333',
-        'Manager': '#666666'
+        'Manager': '#666666',
+        'Championship': '#B8860B'
     };
     const typeColor = typeColors[card.card_type] || '#6c757d';
 
@@ -128,12 +130,10 @@ export function generatePlaytestCardHTML(card, tempContainer, width = 750, heigh
     
     // Format text with simple fonts
     const formattedText = finalLines.map(line => {
-        // Make keywords bold
         abilityKeywords.forEach(kw => {
             const regex = new RegExp(`\\b${kw}\\b`, 'g');
             line = line.replace(regex, `<strong style="font-family: ${CARD_FONT};">${kw}</strong>`);
         });
-        // Make card names italic
         const cardNameRegex = /'([^']+)'/g;
         line = line.replace(cardNameRegex, `<em style="font-family: ${CARD_FONT};">'$1'</em>`);
         return `<p style="margin: 0 0 ${8 * scale}px 0; font-family: ${CARD_FONT};">${line}</p>`;
@@ -160,7 +160,6 @@ export function generatePlaytestCardHTML(card, tempContainer, width = 750, heigh
     
     const typeLineHTML = !isPersona ? `<div style="padding: ${15 * scale}px; text-align: center; font-size: ${typeLineFontSize}px; font-weight: bold; font-family: ${CARD_TITLE_FONT}; border-radius: ${15 * scale}px; margin-bottom: ${15 * scale}px; color: white; background-color: ${typeColor};">${card.card_type}</div>` : `<div style="text-align: center; font-size: ${typeLineFontSize}px; font-weight: bold; font-family: ${CARD_TITLE_FONT}; color: #6c757d; margin-bottom: ${15 * scale}px;">${card.card_type}</div>`;
 
-    // Build HTML with SIMPLE fonts
     const html = `
         <div style="position: relative; background-color: white; border: ${borderWidth}px solid black; border-radius: ${borderRadius}px; box-sizing: border-box; width: ${width}px; height: ${height}px; padding: ${padding}px; display: flex; flex-direction: column; color: black; overflow: hidden; font-family: ${CARD_FONT};">
             <!-- Header with stats, title, and cost -->
