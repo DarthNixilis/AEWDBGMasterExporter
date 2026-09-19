@@ -8,11 +8,13 @@ export let selectedWrestler = null;
 export let selectedManager = null;
 export let selectedCallName = null;
 export let selectedFaction = null;
+export let selectedChampionship = null;
 export let activeFilters = [{}, {}, {}];
 export let currentViewMode = 'grid';
 export let currentSort = 'alpha-asc';
 export let showZeroCost = true;
 export let showNonZeroCost = true;
+export let showPersonaCards = true;
 export let numGridColumns = 2;
 export let lastFocusedElement;
 export const CACHE_KEY = 'aewDeckBuilderCache';
@@ -25,11 +27,13 @@ export function setSelectedWrestler(wrestler) { selectedWrestler = wrestler; }
 export function setSelectedManager(manager) { selectedManager = manager; }
 export function setSelectedCallName(callName) { selectedCallName = callName; }
 export function setSelectedFaction(faction) { selectedFaction = faction; }
+export function setSelectedChampionship(championship) { selectedChampionship = championship; }
 export function setActiveFilters(filters) { activeFilters = filters; }
 export function setCurrentViewMode(mode) { currentViewMode = mode; }
 export function setCurrentSort(sort) { currentSort = sort; }
 export function setShowZeroCost(value) { showZeroCost = value; }
 export function setShowNonZeroCost(value) { showNonZeroCost = value; }
+export function setShowPersonaCards(value) { showPersonaCards = value; }
 export function setNumGridColumns(num) { numGridColumns = num; }
 export function setLastFocusedElement(el) { lastFocusedElement = el; }
 
@@ -56,6 +60,7 @@ export function saveStateToCache() {
         manager: selectedManager ? selectedManager.title : null,
         callName: selectedCallName ? selectedCallName.title : null,
         faction: selectedFaction ? selectedFaction.title : null,
+        championship: selectedChampionship ? selectedChampionship.title : null,
         startingDeck: startingDeck,
         purchaseDeck: purchaseDeck
     };
@@ -86,6 +91,7 @@ export function isSignatureFor(card) {
     if (selectedManager) activePersonaTitles.push(selectedManager.title);
     if (selectedCallName) activePersonaTitles.push(selectedCallName.title);
     if (selectedFaction) activePersonaTitles.push(selectedFaction.title);
+    if (selectedChampionship) activePersonaTitles.push(selectedChampionship.title);
     
     return activePersonaTitles.includes(personaName);
 }
@@ -121,12 +127,14 @@ export function getKitPersona(card) {
         
         // If it's a persona card itself, return its name without the type
         if (card.card_type === 'Wrestler' || card.card_type === 'Manager' || 
-            card.card_type === 'Call Name' || card.card_type === 'Faction') {
+            card.card_type === 'Call Name' || card.card_type === 'Faction' ||
+            card.card_type === 'Championship') {
             let cleanName = card.title || '';
             cleanName = cleanName.replace(/\s*Wrestler$/, '');
             cleanName = cleanName.replace(/\s*Manager$/, '');
             cleanName = cleanName.replace(/\s*Call Name$/, '');
             cleanName = cleanName.replace(/\s*Faction$/, '');
+            cleanName = cleanName.replace(/\s*Championship$/, '');
             return cleanName;
         }
         
@@ -135,4 +143,47 @@ export function getKitPersona(card) {
         console.error("Error getting kit persona:", e, card);
         return null;
     }
+}
+
+// ---------------------------------------------------------------------------
+// Deck-limit helpers (display-only; nothing is prevented from being added)
+// ---------------------------------------------------------------------------
+
+// Returns how many copies of a card are in each deck.
+export function getCardCounts(cardTitle) {
+    const inStarting = startingDeck.filter(title => title === cardTitle).length;
+    const inPurchase = purchaseDeck.filter(title => title === cardTitle).length;
+    return { inStarting, inPurchase, total: inStarting + inPurchase };
+}
+
+// A card is "over limit" (rendered in red, but still addable):
+//   - 3+ copies in Starting Deck
+//   - OR 4+ copies across both decks combined
+export function isCardOverLimit(cardTitle) {
+    const { inStarting, total } = getCardCounts(cardTitle);
+    return inStarting >= 3 || total >= 4;
+}
+
+// Whether the Starting Deck count should be rendered in red (under minimum).
+export function isStartingUnderMinimum() {
+    return startingDeck.length < 24;
+}
+
+// Whether the Purchase Deck count should be rendered in red (under minimum).
+export function isPurchaseUnderMinimum() {
+    return purchaseDeck.length < 36;
+}
+
+// Whether a card should be shown/hidden based on the "Show Persona Cards" filter.
+// Persona / kit / championship / wrestler / manager / call name / faction cards.
+export function isPersonaOrKitCard(card) {
+    if (!card) return false;
+    if (card.card_type === 'Wrestler' ||
+        card.card_type === 'Manager' ||
+        card.card_type === 'Call Name' ||
+        card.card_type === 'Faction' ||
+        card.card_type === 'Championship') {
+        return true;
+    }
+    return isKitCard(card);
 }

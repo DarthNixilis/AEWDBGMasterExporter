@@ -6,19 +6,14 @@ import { renderDecks } from './ui.js';
 export function addCardToDeck(cardTitle, targetDeck) {
     const card = state.cardTitleCache[cardTitle];
     if (!card) return;
+
+    // Kit cards are attached to a persona and cannot be added to a deck manually.
     if (state.isKitCard(card)) {
         alert(`"${card.title}" is a Kit card and cannot be added to your deck during construction.`);
         return;
     }
-    const totalCount = (state.startingDeck.filter(title => title === cardTitle).length) + (state.purchaseDeck.filter(title => title === cardTitle).length);
-    if (totalCount >= 3) {
-        alert(`Rule Violation: Max 3 copies of "${card.title}" allowed in total.`);
-        return;
-    }
+
     if (targetDeck === 'starting') {
-        if (card.cost !== 0) { alert(`Rule Violation: Only 0-cost cards allowed in Starting Deck.`); return; }
-        if (state.startingDeck.length >= 24) { alert(`Rule Violation: Starting Deck is full (24 cards).`); return; }
-        if (state.startingDeck.filter(title => title === cardTitle).length >= 2) { alert(`Rule Violation: Max 2 copies of "${card.title}" allowed in Starting Deck.`); return; }
         state.startingDeck.push(cardTitle);
     } else {
         state.purchaseDeck.push(cardTitle);
@@ -34,4 +29,3 @@ export function removeCardFromDeck(cardTitle, deckName) {
         renderDecks();
     }
 }
-

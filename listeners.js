@@ -12,6 +12,7 @@ export function initializeAllEventListeners(refreshCardPool) {
     const sortSelect = document.getElementById('sortSelect');
     const showZeroCostCheckbox = document.getElementById('showZeroCost');
     const showNonZeroCostCheckbox = document.getElementById('showNonZeroCost');
+    const showPersonaCardsCheckbox = document.getElementById('showPersonaCards');
     const gridSizeControls = document.getElementById('gridSizeControls');
     const viewModeToggle = document.getElementById('viewModeToggle');
     const searchResults = document.getElementById('searchResults');
@@ -21,6 +22,9 @@ export function initializeAllEventListeners(refreshCardPool) {
     sortSelect.addEventListener('change', (e) => { state.setCurrentSort(e.target.value); refreshCardPool(); });
     showZeroCostCheckbox.addEventListener('change', (e) => { state.setShowZeroCost(e.target.checked); refreshCardPool(); });
     showNonZeroCostCheckbox.addEventListener('change', (e) => { state.setShowNonZeroCost(e.target.checked); refreshCardPool(); });
+    if (showPersonaCardsCheckbox) {
+        showPersonaCardsCheckbox.addEventListener('change', (e) => { state.setShowPersonaCards(e.target.checked); refreshCardPool(); });
+    }
     gridSizeControls.addEventListener('click', (e) => {
         if (e.target.tagName === 'BUTTON') {
             state.setNumGridColumns(e.target.dataset.columns);
@@ -48,6 +52,7 @@ export function initializeAllEventListeners(refreshCardPool) {
     const managerSelect = document.getElementById('managerSelect');
     const callNameSelect = document.getElementById('callNameSelect');
     const factionSelect = document.getElementById('factionSelect');
+    const championshipSelect = document.getElementById('championshipSelect');
     const startingDeckList = document.getElementById('startingDeckList');
     const purchaseDeckList = document.getElementById('purchaseDeckList');
     const personaDisplay = document.getElementById('personaDisplay');
@@ -94,6 +99,15 @@ export function initializeAllEventListeners(refreshCardPool) {
             state.saveStateToCache();
         });
     }
+    if (championshipSelect) {
+        championshipSelect.addEventListener('change', (e) => {
+            const newChampionship = state.cardTitleCache[e.target.value] || null;
+            state.setSelectedChampionship(newChampionship);
+            ui.renderPersonaDisplay();
+            refreshCardPool();
+            state.saveStateToCache();
+        });
+    }
     [startingDeckList, purchaseDeckList, personaDisplay].forEach(container => {
         container.addEventListener('click', (e) => {
             const target = e.target;
@@ -111,12 +125,14 @@ export function initializeAllEventListeners(refreshCardPool) {
             state.setSelectedManager(null);
             state.setSelectedCallName(null);
             state.setSelectedFaction(null);
+            state.setSelectedChampionship(null);
             
             // Reset dropdowns
             wrestlerSelect.value = "";
             managerSelect.value = "";
             if (callNameSelect) callNameSelect.value = "";
             if (factionSelect) factionSelect.value = "";
+            if (championshipSelect) championshipSelect.value = "";
             
             ui.renderDecks();
             ui.renderPersonaDisplay();
