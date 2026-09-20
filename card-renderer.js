@@ -22,6 +22,9 @@ export function generateCardVisualHTML(card) {
         // Only show kit info for non-persona cards that go in decks
         const isPersonaCard = ['Wrestler', 'Manager', 'Call Name', 'Faction', 'Championship'].includes(card.card_type);
         const showKitInfo = kitPersona && !isPersonaCard;
+
+        // Treat double spaces as intentional line breaks in the fallback placeholder text
+        const placeholderText = (card.text_box?.raw_text || '').replace(/\s{2,}/g, '<br>');
         
         const placeholderHTML = `
             <div class="placeholder-card">
@@ -42,7 +45,7 @@ export function generateCardVisualHTML(card) {
                 <div class="placeholder-art-area"><span>Art Missing</span></div>
                 <div class="placeholder-type-line ${typeClass}"><span>${card.card_type || 'Unknown'}</span></div>
                 <div class="placeholder-text-box">
-                    <p>${card.text_box?.raw_text || ''}</p>
+                    <p>${placeholderText}</p>
                 </div>
             </div>`;
         
@@ -106,27 +109,37 @@ export function generatePlaytestCardHTML(card, tempContainer, width = 750, heigh
     const abilityKeywords = ['Ongoing', 'Enters', 'Finisher', 'Tie-Up Action', 'Recovery Action', 'Tie-Up Enters', 'Ready Enters'];
     const personaExceptions = ['Chris Jericho']; 
     const delimiter = '|||';
-    let tempText = rawText;
-    abilityKeywords.forEach(kw => {
-        const regex = new RegExp(`(^|\\s)(${kw})`, 'g');
-        tempText = tempText.replace(regex, `$1${delimiter}$2`);
-    });
-    let lines = tempText.split(delimiter).map(line => line.trim()).filter(line => line);
+
+    // Step 1: double spaces in the source are intentional line breaks.
+    // Step 2: within each chunk, split on ability keywords.
+    // Step 3: apply the persona / gains-quote merge logic (only within a chunk).
+    const doubleSpaceParts = rawText.split(/\s{2,}/).map(s => s.trim()).filter(Boolean);
     const finalLines = [];
-    if (lines.length > 0) {
-        finalLines.push(lines[0]);
-        for (let i = 1; i < lines.length; i++) {
-            const previousLine = finalLines[finalLines.length - 1];
-            const currentLine = lines[i];
-            const endsWithPersona = personaExceptions.some(persona => previousLine.endsWith(persona));
-            const isGainQuote = previousLine.includes("gains '");
+
+    doubleSpaceParts.forEach(part => {
+        let tempText = part;
+        abilityKeywords.forEach(kw => {
+            const regex = new RegExp(`(^|\\s)(${kw})`, 'g');
+            tempText = tempText.replace(regex, `$1${delimiter}$2`);
+        });
+        const subLines = tempText.split(delimiter).map(line => line.trim()).filter(Boolean);
+
+        subLines.forEach((currentLine, idx) => {
+            const prev = finalLines[finalLines.length - 1];
+            // Never merge across a double-space boundary
+            if (idx === 0 || !prev) {
+                finalLines.push(currentLine);
+                return;
+            }
+            const endsWithPersona = personaExceptions.some(persona => prev.endsWith(persona));
+            const isGainQuote = prev.includes("gains '");
             if (endsWithPersona || isGainQuote) {
                 finalLines[finalLines.length - 1] += ` ${currentLine}`;
             } else {
                 finalLines.push(currentLine);
             }
-        }
-    }
+        });
+    });
     
     // Format text with simple fonts
     const formattedText = finalLines.map(line => {

@@ -39,13 +39,8 @@ function parseCardTSV(tsvData, set) {
         // Text box parsing
         card.text_box = { raw_text: card['Game Text'] || '' };
         
-        // Parse keywords (if any)
-        const keywordsMatch = card['Game Text']?.match(/Keywords?:?\s*([^\.]+)/i);
-        if (keywordsMatch) {
-            card.text_box.keywords = keywordsMatch[1].split(',').map(name => ({ name: name.trim() })).filter(k => k.name);
-        } else {
-            card.text_box.keywords = [];
-        }
+        // Keywords will be populated in a second pass once the keyword DB is loaded
+        card.text_box.keywords = [];
         
         // Parse traits (if any)
         if (card['Traits']) {
@@ -69,6 +64,28 @@ function parseCardTSV(tsvData, set) {
         
         return card;
     }).filter(card => card.title);
+}
+
+// After keywords are loaded, scan every card's game text for keyword mentions
+// and populate card.text_box.keywords so the renderers can build reminder blocks.
+function populateCardKeywords(cards, keywordDatabase) {
+    const keywordNames = Object.keys(keywordDatabase).sort((a, b) => b.length - a.length);
+    if (keywordNames.length === 0) return;
+
+    cards.forEach(card => {
+        if (!card.text_box) return;
+        const text = card.text_box.raw_text || '';
+        card.text_box.keywords = [];
+        if (!text) return;
+
+        for (const kw of keywordNames) {
+            const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+            if (regex.test(text)) {
+                card.text_box.keywords.push({ name: kw });
+            }
+        }
+    });
 }
 
 export async function loadGameData() {
@@ -120,6 +137,9 @@ export async function loadGameData() {
             }
         });
         state.setKeywordDatabase(parsedKeywords);
+
+        // Now that keywords are known, scan all card texts for mentions
+        populateCardKeywords(allCards, parsedKeywords);
         
         state.buildCardTitleCache();
         return true; // Signal success
