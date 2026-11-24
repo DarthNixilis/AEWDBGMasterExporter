@@ -85,7 +85,7 @@ Swerve's House	Response	Core	5	0	5			Swerve Strickland Wrestler	Reverse any Card
 Unscripted Violence	Response	Core	5	0	3			Jon Moxley Wrestler	Reverse any maneuver. Enters - Reveal your hand to your opponent and they choose a maneuver from it. Play that maneuver, it can't be reversed but deals half damage (round up). 
 Thumbs Down 	Response	Core	6	3	3			Bobby Lashley Wrestler	Power Attack. Reverse any maneuver. 
 And Watch for the Shoe	Response	Core	7	0	5			Toni Storm Wrestler	Reverse any maneuver.  Ongoing - Your Action cards are +1D
-Had It Scouted	Response	Core	8	0	2				Reverse any Maneuver.
+Had It Scouted	Response	Core	6	0	2				Reverse any Maneuver.
 Chop	Strike	Core	0	1	1	T	Chop		Enters - Scout
 European Uppercut	Strike	Core	0	5	3	T			Enters - Discard the top two cards of your Draw deck
 Front Kick	Strike	Core	0	4	4	T	Kick		
